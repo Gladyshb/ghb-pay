@@ -18,6 +18,7 @@ import Kyc from '@/pages/Kyc';
 import Deposit from '@/pages/Deposit';
 import Transfer from '@/pages/Transfer';
 import Transactions from '@/pages/Transactions';
+import History from '@/pages/History';
 import Chat from '@/pages/Chat';
 import Admin from '@/pages/Admin';
 import About from '@/pages/About';
@@ -44,6 +45,7 @@ function App() {
                 <Route path="/deposit" element={<Deposit />} />
                 <Route path="/transfer" element={<Transfer />} />
                 <Route path="/transactions" element={<Transactions />} />
+                <Route path="/history" element={<History />} />
                 <Route path="/chat" element={<Chat />} />
                 <Route path="/about" element={<About />} />
                 <Route path="/referral" element={<Referral />} />

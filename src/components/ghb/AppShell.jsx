@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { Outlet, NavLink, useLocation, useNavigate } from "react-router-dom";
-import { Home, ArrowDownToLine, ArrowUpFromLine, ReceiptText, MessageSquare, ShieldAlert, LogOut, LayoutDashboard, Gift, Info } from "lucide-react";
+import { Home, ArrowDownToLine, ArrowUpFromLine, ReceiptText, History as HistoryIcon, MessageSquare, ShieldAlert, LogOut, LayoutDashboard, Gift, Info } from "lucide-react";
 import { useCurrentUser, useWallet, KYC_META } from "@/lib/ghb";
 import { useAuth } from "@/lib/AuthContext";
 import Logo from "./Logo";
@@ -12,7 +12,7 @@ const NAV = [
   { to: "/deposit", label: "Dépôt", icon: ArrowDownToLine },
   { to: "/transfer", label: "Transfert", icon: ArrowUpFromLine },
   { to: "/referral", label: "Parrain", icon: Gift },
-  { to: "/transactions", label: "Activité", icon: ReceiptText },
+  { to: "/history", label: "Historique", icon: HistoryIcon },
   { to: "/chat", label: "Chat", icon: MessageSquare },
 ];
 
