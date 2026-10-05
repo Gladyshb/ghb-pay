@@ -44,6 +44,24 @@
       "type": "string",
       "description": "Extra instructions shown to the user"
     },
+    "accent_color": {
+      "type": "string",
+      "default": "#D4AF37",
+      "description": "Accent color (hex) used to style this method's icon and card on the deposit page"
+    },
+    "icon": {
+      "type": "string",
+      "description": "Emoji or short symbol displayed as this method's icon (e.g. \ud83d\udcf1, \ud83c\udfe6, \u20ae, \ud83c\udf0d)"
+    },
+    "card_style": {
+      "type": "string",
+      "enum": [
+        "standard",
+        "highlighted"
+      ],
+      "default": "standard",
+      "description": "Card presentation on the deposit page: standard (subtle) or highlighted (accent border)"
+    },
     "active": {
       "type": "boolean",
       "default": true,

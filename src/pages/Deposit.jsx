@@ -109,18 +109,27 @@ export default function Deposit() {
                     <Icon className="w-4 h-4 text-[#D4AF37]" /> {meta.label}
                   </div>
                   <div className="space-y-2">
-                    {list.map((a) => (
-                      <button key={a.id} onClick={() => { setSelected(a); setCurrency(a.currency || "USD"); setStep(2); }}
-                        className="w-full text-left px-3.5 py-3 rounded-xl bg-white/[0.03] border border-white/5 hover:border-[#D4AF37]/40 hover:bg-white/[0.05] transition">
-                        <div className="flex items-center justify-between">
-                          <div className="min-w-0">
-                            <div className="font-medium text-foreground text-sm">{a.provider}</div>
-                            <div className="text-xs text-muted-foreground truncate">{a.label} · {a.currency}</div>
+                    {list.map((a) => {
+                      const accent = a.accent_color || "#D4AF37";
+                      const hl = a.card_style === "highlighted";
+                      return (
+                        <button key={a.id} onClick={() => { setSelected(a); setCurrency(a.currency || "USD"); setStep(2); }}
+                          className="w-full text-left px-3.5 py-3 rounded-xl bg-white/[0.03] hover:bg-white/[0.06] transition border"
+                          style={{ borderColor: hl ? accent + "66" : "rgba(255,255,255,0.06)" }}>
+                          <div className="flex items-center gap-3">
+                            <span className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 text-lg"
+                              style={{ backgroundColor: accent + "1F", color: accent, border: `1px solid ${accent}55` }}>
+                              {a.icon || <Icon className="w-5 h-5" />}
+                            </span>
+                            <div className="min-w-0 flex-1">
+                              <div className="font-medium text-foreground text-sm">{a.provider}</div>
+                              <div className="text-xs text-muted-foreground truncate">{a.label} · {a.currency}</div>
+                            </div>
+                            <ChevronLeft className="w-4 h-4 text-muted-foreground rotate-180 shrink-0" />
                           </div>
-                          <ChevronLeft className="w-4 h-4 text-muted-foreground rotate-180" />
-                        </div>
-                      </button>
-                    ))}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               );
