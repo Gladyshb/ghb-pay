@@ -1,0 +1,85 @@
+{
+  "name": "ChatMessage",
+  "type": "object",
+  "properties": {
+    "thread_type": {
+      "type": "string",
+      "enum": [
+        "deposit",
+        "transfer",
+        "support"
+      ],
+      "description": "Type of conversation thread"
+    },
+    "thread_id": {
+      "type": "string",
+      "description": "Id of the related deposit/transfer request, or 'support' for general support"
+    },
+    "user_id": {
+      "type": "string",
+      "description": "The user participant of this conversation (the other side is admin)"
+    },
+    "sender_role": {
+      "type": "string",
+      "enum": [
+        "user",
+        "admin"
+      ],
+      "description": "Who sent the message"
+    },
+    "text": {
+      "type": "string",
+      "description": "Message text"
+    },
+    "attachment_uri": {
+      "type": "string",
+      "description": "Private storage URI of an attached file (screenshot/receipt)"
+    },
+    "attachment_name": {
+      "type": "string",
+      "description": "Original name of the attached file"
+    }
+  },
+  "required": [
+    "thread_type",
+    "thread_id",
+    "user_id",
+    "sender_role"
+  ],
+  "rls": {
+    "read": {
+      "$or": [
+        {
+          "data.user_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "create": {
+      "$or": [
+        {
+          "data.user_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

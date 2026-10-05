@@ -1,0 +1,57 @@
+{
+  "name": "User",
+  "type": "object",
+  "properties": {
+    "role": {
+      "type": "string",
+      "description": "The role of the user in the app",
+      "enum": [
+        "admin",
+        "user"
+      ]
+    },
+    "legal_name": {
+      "type": "string",
+      "description": "Full legal name provided during KYC"
+    },
+    "phone": {
+      "type": "string",
+      "description": "Phone number including country code"
+    },
+    "country": {
+      "type": "string",
+      "description": "Country of residence"
+    },
+    "id_document_type": {
+      "type": "string",
+      "enum": [
+        "national_id",
+        "passport",
+        "driver_license"
+      ],
+      "description": "Type of identity document uploaded for KYC"
+    },
+    "id_document_uri": {
+      "type": "string",
+      "description": "Private storage URI of the uploaded identity document"
+    },
+    "kyc_status": {
+      "type": "string",
+      "enum": [
+        "not_submitted",
+        "pending",
+        "approved",
+        "rejected"
+      ],
+      "default": "not_submitted",
+      "description": "KYC verification status"
+    },
+    "kyc_rejection_reason": {
+      "type": "string",
+      "description": "Reason given by admin when rejecting KYC"
+    }
+  },
+  "required": [
+    "role"
+  ]
+}

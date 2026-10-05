@@ -1,0 +1,71 @@
+{
+  "name": "Currency",
+  "type": "object",
+  "properties": {
+    "code": {
+      "type": "string",
+      "description": "ISO currency code (e.g. USD, BIF, USDT)"
+    },
+    "name": {
+      "type": "string",
+      "description": "Full currency name"
+    },
+    "symbol": {
+      "type": "string",
+      "description": "Currency symbol"
+    },
+    "flag_emoji": {
+      "type": "string",
+      "description": "Flag emoji or icon for the currency"
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "fiat",
+        "crypto"
+      ],
+      "default": "fiat",
+      "description": "Whether this is a fiat or crypto currency"
+    },
+    "buy_rate": {
+      "type": "number",
+      "default": 0,
+      "description": "Rate at which the platform buys this currency (per USD)"
+    },
+    "sell_rate": {
+      "type": "number",
+      "default": 0,
+      "description": "Rate at which the platform sells this currency (per USD)"
+    },
+    "active": {
+      "type": "boolean",
+      "default": true,
+      "description": "Whether this currency is available for exchange"
+    }
+  },
+  "required": [
+    "code",
+    "name",
+    "buy_rate",
+    "sell_rate",
+    "active"
+  ],
+  "rls": {
+    "read": {},
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}
