@@ -4,6 +4,7 @@ import { base44 } from "@/api/base44Client";
 import { useCurrentUser, useWallet, formatMoney, formatDate, KYC_META, DEPOSIT_STATUS, TRANSFER_STATUS } from "@/lib/ghb";
 import StatusBadge from "@/components/ghb/StatusBadge";
 import SupportButtons from "@/components/ghb/SupportButtons";
+import CurrencyCalculator from "@/components/ghb/CurrencyCalculator";
 import { ArrowDownToLine, ArrowUpFromLine, MessageSquare, Wallet, TrendingUp, ShieldCheck, Loader2, ChevronRight } from "lucide-react";
 
 export default function Home() {
@@ -109,12 +110,15 @@ export default function Home() {
         )}
       </div>
 
+      {/* Currency converter */}
+      <CurrencyCalculator currencies={rates} loading={loading} />
+
       {/* Recent activity */}
       <div className="grid sm:grid-cols-2 gap-4">
         <ActivityCard title="Dépôts récents" icon={ArrowDownToLine} items={deposits.map((d) => ({
           id: d.id, title: `${formatMoney(d.amount, d.currency)}`, sub: formatDate(d.created_date), status: d.status, meta: DEPOSIT_STATUS, link: "/transactions",
         }))} loading={loading} />
-        <ActivityCard title="Transferts récents" icon={ArrowUpFromLine} items={transfers.map((t) => ({
+        <ActivityCard title="Retraits récents" icon={ArrowUpFromLine} items={transfers.map((t) => ({
           id: t.id, title: `${formatMoney(t.amount, t.from_currency)} → ${t.to_currency}`, sub: t.beneficiary_name, status: t.status, meta: TRANSFER_STATUS, link: "/transactions",
         }))} loading={loading} />
       </div>
