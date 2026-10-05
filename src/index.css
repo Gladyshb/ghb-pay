@@ -91,4 +91,14 @@
   .no-scrollbar::-webkit-scrollbar { display: none; }
   .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
   .smooth-scroll { scroll-behavior: smooth; }
+  @keyframes ghb-marquee {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
+  }
+  .ghb-marquee {
+    display: inline-block;
+    white-space: nowrap;
+    animation: ghb-marquee 32s linear infinite;
+  }
+  .ghb-marquee:hover { animation-play-state: paused; }
 }

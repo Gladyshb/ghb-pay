@@ -1,0 +1,48 @@
+{
+  "name": "ReferralSetting",
+  "type": "object",
+  "properties": {
+    "commission_type": {
+      "type": "string",
+      "enum": [
+        "percent",
+        "fixed"
+      ],
+      "default": "percent",
+      "description": "Whether commission is a percentage of the transfer or a fixed amount"
+    },
+    "commission_value": {
+      "type": "number",
+      "default": 5,
+      "description": "Commission value (percent or fixed USD amount)"
+    },
+    "active": {
+      "type": "boolean",
+      "default": true,
+      "description": "Whether the referral program is enabled"
+    }
+  },
+  "required": [
+    "commission_type",
+    "commission_value",
+    "active"
+  ],
+  "rls": {
+    "read": {},
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

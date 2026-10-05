@@ -1,0 +1,89 @@
+{
+  "name": "Referral",
+  "type": "object",
+  "properties": {
+    "referrer_id": {
+      "type": "string",
+      "description": "Id of the user who invited"
+    },
+    "referrer_name": {
+      "type": "string",
+      "description": "Display name of the referrer"
+    },
+    "referred_id": {
+      "type": "string",
+      "description": "Id of the invited user"
+    },
+    "referred_name": {
+      "type": "string",
+      "description": "Display name of the referred user"
+    },
+    "referred_email": {
+      "type": "string",
+      "description": "Email of the referred user"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "rewarded",
+        "void"
+      ],
+      "default": "pending",
+      "description": "Reward status of this referral"
+    },
+    "reward_amount": {
+      "type": "number",
+      "default": 0,
+      "description": "Commission credited to the referrer once rewarded"
+    },
+    "first_transfer_id": {
+      "type": "string",
+      "description": "Id of the first validated transfer that triggered the reward"
+    }
+  },
+  "required": [
+    "referrer_id",
+    "referred_id",
+    "status"
+  ],
+  "rls": {
+    "read": {
+      "$or": [
+        {
+          "data.referrer_id": "{{user.id}}"
+        },
+        {
+          "data.referred_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "create": {
+      "$or": [
+        {
+          "data.referred_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

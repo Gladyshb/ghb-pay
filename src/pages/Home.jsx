@@ -5,7 +5,9 @@ import { useCurrentUser, useWallet, formatMoney, formatDate, KYC_META, DEPOSIT_S
 import StatusBadge from "@/components/ghb/StatusBadge";
 import SupportButtons from "@/components/ghb/SupportButtons";
 import CurrencyCalculator from "@/components/ghb/CurrencyCalculator";
-import { ArrowDownToLine, ArrowUpFromLine, MessageSquare, Wallet, TrendingUp, ShieldCheck, Loader2, ChevronRight } from "lucide-react";
+import TickerBanner from "@/components/ghb/TickerBanner";
+import AnnouncementCarousel from "@/components/ghb/AnnouncementCarousel";
+import { ArrowDownToLine, ArrowUpFromLine, MessageSquare, Wallet, TrendingUp, ShieldCheck, Loader2, ChevronRight, Gift, Info } from "lucide-react";
 
 export default function Home() {
   const { user } = useCurrentUser();
@@ -35,6 +37,9 @@ export default function Home() {
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
+      {/* Scrolling ticker */}
+      <TickerBanner />
+
       {/* Hero balance card */}
       <div className="relative overflow-hidden rounded-3xl ghb-card p-6 sm:p-8">
         <div className="absolute -top-16 -right-16 w-56 h-56 rounded-full bg-[#D4AF37]/10 blur-3xl" />
@@ -79,6 +84,9 @@ export default function Home() {
         </Link>
       )}
 
+      {/* Promotional announcements */}
+      <AnnouncementCarousel />
+
       {/* Exchange rates */}
       <div className="ghb-card rounded-2xl p-5">
         <div className="flex items-center justify-between mb-4">
@@ -121,6 +129,28 @@ export default function Home() {
         <ActivityCard title="Retraits récents" icon={ArrowUpFromLine} items={transfers.map((t) => ({
           id: t.id, title: `${formatMoney(t.amount, t.from_currency)} → ${t.to_currency}`, sub: t.beneficiary_name, status: t.status, meta: TRANSFER_STATUS, link: "/transactions",
         }))} loading={loading} />
+      </div>
+
+      {/* Referral & About quick links */}
+      <div className="grid grid-cols-2 gap-3">
+        <Link to="/referral" className="ghb-card rounded-2xl p-4 flex items-center gap-3 hover:border-[#D4AF37]/40 transition">
+          <div className="w-10 h-10 rounded-xl ghb-gold-bg flex items-center justify-center shrink-0">
+            <Gift className="w-5 h-5 text-black" />
+          </div>
+          <div className="min-w-0">
+            <div className="font-semibold text-foreground text-sm">Parrainage</div>
+            <div className="text-xs text-muted-foreground truncate">Invitez & gagnez</div>
+          </div>
+        </Link>
+        <Link to="/about" className="ghb-card rounded-2xl p-4 flex items-center gap-3 hover:border-[#D4AF37]/40 transition">
+          <div className="w-10 h-10 rounded-xl ghb-emerald-bg flex items-center justify-center shrink-0">
+            <Info className="w-5 h-5 text-white" />
+          </div>
+          <div className="min-w-0">
+            <div className="font-semibold text-foreground text-sm">À propos</div>
+            <div className="text-xs text-muted-foreground truncate">Notre histoire</div>
+          </div>
+        </Link>
       </div>
 
       <div className="sm:hidden">

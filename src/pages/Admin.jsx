@@ -8,7 +8,11 @@ import AddressesTab from "@/components/admin/AddressesTab";
 import CurrenciesTab from "@/components/admin/CurrenciesTab";
 import SupportTab from "@/components/admin/SupportTab";
 import ChatInboxTab from "@/components/admin/ChatInboxTab";
-import { ShieldCheck, ArrowDownToLine, ArrowUpFromLine, MapPin, Coins, LifeBuoy, Inbox } from "lucide-react";
+import AnnouncementsTab from "@/components/admin/AnnouncementsTab";
+import TickerTab from "@/components/admin/TickerTab";
+import AboutTab from "@/components/admin/AboutTab";
+import ReferralsTab from "@/components/admin/ReferralsTab";
+import { ShieldCheck, ArrowDownToLine, ArrowUpFromLine, MapPin, Coins, LifeBuoy, Inbox, Megaphone, Activity, Info, Gift } from "lucide-react";
 
 export default function Admin() {
   const [tab, setTab] = useState("kyc");
@@ -34,6 +38,10 @@ export default function Admin() {
           <Tab v="currencies" icon={Coins} label="Devises" />
           <Tab v="support" icon={LifeBuoy} label="Support" />
           <Tab v="inbox" icon={Inbox} label="Messagerie" />
+          <Tab v="announcements" icon={Megaphone} label="Annonces" />
+          <Tab v="ticker" icon={Activity} label="Bandeau" />
+          <Tab v="about" icon={Info} label="À propos" />
+          <Tab v="referrals" icon={Gift} label="Parrainage" />
         </TabsList>
 
         <TabsContent value="kyc" className="mt-4"><KycTab /></TabsContent>
@@ -43,6 +51,10 @@ export default function Admin() {
         <TabsContent value="currencies" className="mt-4"><CurrenciesTab /></TabsContent>
         <TabsContent value="support" className="mt-4"><SupportTab /></TabsContent>
         <TabsContent value="inbox" className="mt-4"><ChatInboxTab /></TabsContent>
+        <TabsContent value="announcements" className="mt-4"><AnnouncementsTab /></TabsContent>
+        <TabsContent value="ticker" className="mt-4"><TickerTab /></TabsContent>
+        <TabsContent value="about" className="mt-4"><AboutTab /></TabsContent>
+        <TabsContent value="referrals" className="mt-4"><ReferralsTab /></TabsContent>
       </Tabs>
     </div>
   );

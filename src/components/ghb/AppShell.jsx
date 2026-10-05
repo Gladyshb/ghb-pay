@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { Outlet, NavLink, useLocation, useNavigate } from "react-router-dom";
-import { Home, ArrowDownToLine, ArrowUpFromLine, ReceiptText, MessageSquare, ShieldAlert, LogOut, LayoutDashboard } from "lucide-react";
+import { Home, ArrowDownToLine, ArrowUpFromLine, ReceiptText, MessageSquare, ShieldAlert, LogOut, LayoutDashboard, Gift, Info } from "lucide-react";
 import { useCurrentUser, useWallet, KYC_META } from "@/lib/ghb";
 import { useAuth } from "@/lib/AuthContext";
 import Logo from "./Logo";
@@ -11,6 +11,7 @@ const NAV = [
   { to: "/", label: "Accueil", icon: Home, end: true },
   { to: "/deposit", label: "Dépôt", icon: ArrowDownToLine },
   { to: "/transfer", label: "Transfert", icon: ArrowUpFromLine },
+  { to: "/referral", label: "Parrain", icon: Gift },
   { to: "/transactions", label: "Activité", icon: ReceiptText },
   { to: "/chat", label: "Chat", icon: MessageSquare },
 ];
@@ -77,6 +78,12 @@ export default function AppShell() {
                 </span>
               </div>
             )}
+            <NavLink to="/about" title="À propos"
+              className={({ isActive }) =>
+                `inline-flex items-center gap-1.5 px-2.5 py-2 rounded-lg text-xs font-semibold border ${isActive ? "bg-[#D4AF37]/15 text-[#E8C65A] border-[#D4AF37]/40" : "border-white/10 text-foreground hover:bg-white/5"}`
+              }>
+              <Info className="w-3.5 h-3.5" /> <span className="hidden sm:inline">À propos</span>
+            </NavLink>
             <button onClick={() => logout()} title="Déconnexion"
               className="p-2 rounded-lg border border-white/10 text-muted-foreground hover:bg-white/5 hover:text-foreground">
               <LogOut className="w-4 h-4" />
@@ -97,7 +104,7 @@ export default function AppShell() {
       {/* Bottom nav (mobile) */}
       {!isAdminRoute && (
         <nav className="fixed bottom-0 inset-x-0 z-30 sm:hidden border-t border-white/10 bg-background/95 backdrop-blur-xl">
-          <div className="max-w-6xl mx-auto grid grid-cols-5">
+          <div className="max-w-6xl mx-auto grid grid-cols-6">
             {NAV.map((item) => {
               const Icon = item.icon;
               return (

@@ -20,6 +20,8 @@ import Transfer from '@/pages/Transfer';
 import Transactions from '@/pages/Transactions';
 import Chat from '@/pages/Chat';
 import Admin from '@/pages/Admin';
+import About from '@/pages/About';
+import Referral from '@/pages/Referral';
 
 function App() {
   return (
@@ -43,6 +45,8 @@ function App() {
                 <Route path="/transfer" element={<Transfer />} />
                 <Route path="/transactions" element={<Transactions />} />
                 <Route path="/chat" element={<Chat />} />
+                <Route path="/about" element={<About />} />
+                <Route path="/referral" element={<Referral />} />
                 <Route path="/admin" element={<Admin />} />
               </Route>
             </Route>

@@ -1,0 +1,65 @@
+{
+  "name": "AboutContent",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "description": "Main heading of the About page"
+    },
+    "intro": {
+      "type": "string",
+      "description": "Short introduction paragraph"
+    },
+    "vision": {
+      "type": "string",
+      "description": "Vision / global anchoring text"
+    },
+    "services": {
+      "type": "string",
+      "description": "Description of services offered (multi-line allowed)"
+    },
+    "values": {
+      "type": "string",
+      "description": "Company values (multi-line allowed)"
+    },
+    "location": {
+      "type": "string",
+      "description": "Company location / headquarters"
+    },
+    "phone": {
+      "type": "string",
+      "description": "Contact phone number"
+    },
+    "email": {
+      "type": "string",
+      "description": "Contact email"
+    },
+    "active": {
+      "type": "boolean",
+      "default": true,
+      "description": "Whether this content is live"
+    }
+  },
+  "required": [
+    "title",
+    "active"
+  ],
+  "rls": {
+    "read": {},
+    "create": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "update": {
+      "user_condition": {
+        "role": "admin"
+      }
+    },
+    "delete": {
+      "user_condition": {
+        "role": "admin"
+      }
+    }
+  }
+}

@@ -49,6 +49,14 @@
     "kyc_rejection_reason": {
       "type": "string",
       "description": "Reason given by admin when rejecting KYC"
+    },
+    "referral_code": {
+      "type": "string",
+      "description": "Unique referral code the user shares with their contacts"
+    },
+    "referred_by": {
+      "type": "string",
+      "description": "User id of the referrer who invited this user"
     }
   },
   "required": [

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { formatMoney, formatDate, TRANSFER_STATUS, signFile } from "@/lib/ghb";
+import { processReferralReward } from "@/lib/referral";
 import StatusBadge from "@/components/ghb/StatusBadge";
 import FileUpload from "@/components/ghb/FileUpload";
 import { Button } from "@/components/ui/button";
@@ -45,6 +46,7 @@ export default function TransfersTab() {
     try {
       await base44.entities.TransferRequest.update(viewing.id, { status: "completed", receipt_uri: receipt });
       await debitWallet(viewing.user_id, viewing.amount);
+      await processReferralReward({ id: viewing.id, user_id: viewing.user_id, amount: viewing.amount });
       setViewing(null); load();
     } catch (e) { alert(e.message); } finally { setBusy(false); }
   };

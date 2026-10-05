@@ -16,6 +16,7 @@ import { uploadPrivate } from "@/lib/ghb";
 const COUNTRIES = ["Burundi", "RDC", "Kenya", "Rwanda", "Tanzanie", "Ouganda", "Zambie", "Côte d'Ivoire", "Sénégal", "Maroc", "Algérie", "Émirats Arabes Unis", "Autre"];
 
 export default function Register() {
+  const [refCode] = useState(() => (new URLSearchParams(window.location.search).get("ref") || "").trim().toUpperCase());
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -75,6 +76,10 @@ export default function Register() {
       } catch (kycErr) {
         // Account is created; user can complete KYC later from the app
         console.error("KYC upload failed:", kycErr);
+      }
+      // Apply referral if an invitation code was provided
+      if (refCode) {
+        try { await base44.functions.invoke("applyReferral", { code: refCode }); } catch {}
       }
       window.location.href = safeReturnTo();
     } catch (err) {
