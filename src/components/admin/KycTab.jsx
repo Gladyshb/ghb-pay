@@ -20,8 +20,9 @@ export default function KycTab() {
 
   const load = () => {
     setLoading(true);
-    base44.entities.User.filter({ kyc_status: { $in: ["pending", "rejected"] } }, { limit: 100 })
-      .then(({ items }) => setUsers(items))
+    base44.functions.invoke('listUsersForAdmin', {})
+      .then((res) => setUsers(res.data?.items || []))
+      .catch(() => setUsers([]))
       .finally(() => setLoading(false));
   };
   useEffect(load, []);
