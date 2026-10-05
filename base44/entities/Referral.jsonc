@@ -10,6 +10,10 @@
       "type": "string",
       "description": "Display name of the referrer"
     },
+    "referrer_code": {
+      "type": "string",
+      "description": "Referral code used by the referrer (denormalized for admin views)"
+    },
     "referred_id": {
       "type": "string",
       "description": "Id of the invited user"
@@ -17,6 +21,10 @@
     "referred_name": {
       "type": "string",
       "description": "Display name of the referred user"
+    },
+    "referred_username": {
+      "type": "string",
+      "description": "Public pseudonym of the referred user"
     },
     "referred_email": {
       "type": "string",

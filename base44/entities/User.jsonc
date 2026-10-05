@@ -10,6 +10,10 @@
         "user"
       ]
     },
+    "username": {
+      "type": "string",
+      "description": "Public pseudonym chosen by the member (displayed to referrer)"
+    },
     "legal_name": {
       "type": "string",
       "description": "Full legal name provided during KYC"

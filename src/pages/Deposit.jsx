@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowDownToLine, Copy, Check, Loader2, MessageSquare, ChevronLeft, Smartphone, Building2, Bitcoin, Globe, ShieldCheck } from "lucide-react";
+import { ArrowDownToLine, Copy, Check, Loader2, MessageSquare, ChevronLeft, Smartphone, Building2, Bitcoin, Globe, ShieldCheck, Ticket } from "lucide-react";
 
 const TYPE_META = {
   mobile_money: { label: "Mobile Money", icon: Smartphone },
@@ -27,6 +27,7 @@ export default function Deposit() {
   const [currency, setCurrency] = useState("USD");
   const [receipt, setReceipt] = useState("");
   const [senderRef, setSenderRef] = useState("");
+  const [promoCode, setPromoCode] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [createdId, setCreatedId] = useState(null);
@@ -65,8 +66,12 @@ export default function Deposit() {
         deposit_address_label: selected.label,
         receipt_uri: receipt,
         sender_reference: senderRef,
+        promo_code: promoCode.trim().toUpperCase() || undefined,
         status: "pending",
       });
+      // Attach a referrer if the user entered a sponsor code and isn't already referred
+      const code = promoCode.trim().toUpperCase();
+      if (code) { try { await base44.functions.invoke("applyReferral", { code }); } catch {} }
       setCreatedId(created.id);
       setStep(3);
     } catch (e) {
@@ -164,6 +169,11 @@ export default function Deposit() {
               <Label>Référence / ID transaction (optionnel)</Label>
               <Input value={senderRef} onChange={(e) => setSenderRef(e.target.value)}
                 placeholder="Référence visible sur le paiement" className="bg-white/5 border-white/10 h-11" />
+            </div>
+            <div className="space-y-2">
+              <Label className="flex items-center gap-1.5"><Ticket className="w-3.5 h-3.5 text-[#D4AF37]" /> Code Promo / Parrainage (optionnel)</Label>
+              <Input value={promoCode} onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+                placeholder="Code de votre parrain" className="bg-white/5 border-white/10 h-11 uppercase tracking-widest font-medium" />
             </div>
             <FileUpload value={receipt} onChange={(uri) => setReceipt(uri)}
               label="Capture d'écran du reçu"

@@ -30,8 +30,10 @@ export default async function(req) {
     await base44.entities.Referral.create({
       referrer_id: referrer.id,
       referrer_name: referrer.legal_name || referrer.email,
+      referrer_code: referrer.referral_code || '',
       referred_id: me.id,
       referred_name: me.legal_name || me.email,
+      referred_username: me.username || '',
       referred_email: me.email,
       status: 'pending',
       reward_amount: 0,

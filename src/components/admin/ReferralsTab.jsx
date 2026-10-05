@@ -57,6 +57,21 @@ export default function ReferralsTab() {
 
   const totalEarned = items.filter((i) => i.status === "rewarded").reduce((s, i) => s + (i.reward_amount || 0), 0);
 
+  // Build sponsors summary grouped by referrer
+  const sponsors = (() => {
+    const map = new Map();
+    for (const r of items) {
+      const id = r.referrer_id;
+      if (!id) continue;
+      const cur = map.get(id) || { id, name: r.referrer_name || "Parrain", code: r.referrer_code || "—", count: 0, rewarded: 0 };
+      cur.count += 1;
+      if (r.status === "rewarded") cur.rewarded += 1;
+      if (!r.referrer_code && r.referrer_code) cur.code = r.referrer_code;
+      map.set(id, cur);
+    }
+    return Array.from(map.values()).sort((a, b) => b.count - a.count);
+  })();
+
   return (
     <div className="space-y-4">
       {/* Settings */}
@@ -94,6 +109,35 @@ export default function ReferralsTab() {
         <Stat icon={Users} label="Parrainages" value={items.length} />
         <Stat icon={Gift} label="Récompensés" value={items.filter((i) => i.status === "rewarded").length} tone="emerald" />
         <Stat icon={Gift} label="Total crédité" value={`$${totalEarned.toFixed(2)}`} tone="gold" />
+      </div>
+
+      {/* Sponsors summary */}
+      <div className="space-y-2">
+        <div className="text-sm text-muted-foreground">Parrains (codes personnalisés)</div>
+        {sponsors.length === 0 ? (
+          <div className="ghb-card rounded-2xl p-6 text-center text-sm text-muted-foreground">Aucun parrain enregistré.</div>
+        ) : (
+          <div className="overflow-x-auto no-scrollbar">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-[11px] text-muted-foreground border-b border-white/10">
+                  <th className="text-left font-medium py-2 pr-3">Parrain</th>
+                  <th className="text-left font-medium py-2 pr-3">Code</th>
+                  <th className="text-right font-medium py-2">Filleuls</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sponsors.map((s) => (
+                  <tr key={s.id} className="border-b border-white/5 last:border-0">
+                    <td className="py-2.5 pr-3 font-medium text-foreground truncate">{s.name}</td>
+                    <td className="py-2.5 pr-3"><span className="font-mono text-[#E8C65A] tracking-widest">{s.code}</span></td>
+                    <td className="py-2.5 text-right text-foreground">{s.count}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* List */}

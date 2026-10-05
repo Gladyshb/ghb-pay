@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowUpFromLine, Loader2, Check, MessageSquare, ChevronLeft, AlertTriangle } from "lucide-react";
+import { ArrowUpFromLine, Loader2, Check, MessageSquare, ChevronLeft, AlertTriangle, Ticket } from "lucide-react";
 
 const PAYOUT_METHODS = ["Mobile Money", "Virement bancaire", "Crypto / USDT", "Zelle", "Cash pickup", "Autre"];
 const COUNTRIES = ["Burundi", "RDC", "Kenya", "Rwanda", "Tanzanie", "Ouganda", "Zambie", "Côte d'Ivoire", "Sénégal", "Maroc", "Algérie", "Émirats Arabes Unis", "Autre"];
@@ -29,6 +29,7 @@ export default function Transfer() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [done, setDone] = useState(false);
+  const [promoCode, setPromoCode] = useState("");
 
   useEffect(() => {
     base44.entities.Currency.filter({ active: true }, { sort: "code", limit: 100 })
@@ -62,8 +63,12 @@ export default function Transfer() {
         beneficiary_country: form.beneficiary_country,
         payout_method: form.payout_method,
         payout_details: form.payout_details,
+        promo_code: promoCode.trim().toUpperCase() || undefined,
         status: "pending",
       });
+      // Attach a referrer if the user entered a sponsor code and isn't already referred
+      const code = promoCode.trim().toUpperCase();
+      if (code) { try { await base44.functions.invoke("applyReferral", { code }); } catch {} }
       setDone(true);
     } catch (e) {
       setError(e.message || "Échec de la demande");
@@ -180,6 +185,12 @@ export default function Transfer() {
           <Textarea value={form.payout_details} onChange={(e) => setForm({ ...form, payout_details: e.target.value })}
             placeholder="Numéro Mobile Money, IBAN, adresse wallet USDT, etc." rows={3}
             className="bg-white/5 border-white/10 resize-none" />
+        </div>
+
+        <div className="space-y-2">
+          <Label className="flex items-center gap-1.5"><Ticket className="w-3.5 h-3.5 text-[#D4AF37]" /> Code Promo / Parrainage (optionnel)</Label>
+          <Input value={promoCode} onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+            placeholder="Code de votre parrain" className="bg-white/5 border-white/10 h-11 uppercase tracking-widest font-medium" />
         </div>
 
         {error && <div className="text-sm text-red-400">{error}</div>}

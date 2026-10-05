@@ -50,6 +50,10 @@
       "type": "string",
       "description": "Account / wallet / phone details for the payout"
     },
+    "promo_code": {
+      "type": "string",
+      "description": "Referral / promo code entered by the user on the transfer form"
+    },
     "status": {
       "type": "string",
       "enum": [

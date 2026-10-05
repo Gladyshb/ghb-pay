@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { UserPlus, Mail, Lock, Loader2, ShieldCheck, UploadCloud, FileCheck2 } from "lucide-react";
+import { UserPlus, Mail, Lock, Loader2, ShieldCheck, UploadCloud, FileCheck2, Ticket } from "lucide-react";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import AuthLayout from "@/components/AuthLayout";
 import GoogleIcon from "@/components/GoogleIcon";
@@ -21,6 +21,8 @@ export default function Register() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [legalName, setLegalName] = useState("");
+  const [username, setUsername] = useState("");
+  const [promoCode, setPromoCode] = useState(refCode);
   const [phone, setPhone] = useState("");
   const [country, setCountry] = useState("");
   const [docType, setDocType] = useState("national_id");
@@ -67,6 +69,7 @@ export default function Register() {
         const file_uri = await uploadPrivate(docFile);
         await base44.auth.updateMe({
           legal_name: legalName,
+          username: username || legalName,
           phone,
           country,
           id_document_type: docType,
@@ -77,9 +80,10 @@ export default function Register() {
         // Account is created; user can complete KYC later from the app
         console.error("KYC upload failed:", kycErr);
       }
-      // Apply referral if an invitation code was provided
-      if (refCode) {
-        try { await base44.functions.invoke("applyReferral", { code: refCode }); } catch {}
+      // Apply referral if a promo / sponsorship code was provided
+      const code = (promoCode || refCode || "").trim().toUpperCase();
+      if (code) {
+        try { await base44.functions.invoke("applyReferral", { code }); } catch {}
       }
       window.location.href = safeReturnTo();
     } catch (err) {
@@ -151,6 +155,10 @@ export default function Register() {
           <Label htmlFor="legal_name">Nom complet légal</Label>
           <Input id="legal_name" value={legalName} onChange={(e) => setLegalName(e.target.value)} placeholder="Nom et prénom" className="h-11 bg-white/5 border-white/10" required />
         </div>
+        <div className="space-y-2">
+          <Label htmlFor="username">Pseudonyme (nom public)</Label>
+          <Input id="username" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="ex : GLADYS257 (visible par votre parrain)" className="h-11 bg-white/5 border-white/10" />
+        </div>
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-2">
             <Label htmlFor="phone">Téléphone</Label>
@@ -214,6 +222,11 @@ export default function Register() {
             )}
             <input type="file" accept="image/*,application/pdf" className="hidden" onChange={(e) => handleFile(e.target.files?.[0])} />
           </label>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="promo" className="flex items-center gap-1.5"><Ticket className="w-3.5 h-3.5 text-[#D4AF37]" /> Code Promo / Parrainage (optionnel)</Label>
+          <Input id="promo" value={promoCode} onChange={(e) => setPromoCode(e.target.value.toUpperCase())} placeholder="Code de votre parrain" className="h-11 bg-white/5 border-white/10 uppercase tracking-widest font-medium" />
         </div>
 
         <div className="flex items-start gap-2 text-xs text-muted-foreground">

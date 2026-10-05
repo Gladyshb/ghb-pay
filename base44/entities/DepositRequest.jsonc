@@ -38,6 +38,10 @@
       "type": "string",
       "description": "Reference or transaction id shown on the payment"
     },
+    "promo_code": {
+      "type": "string",
+      "description": "Referral / promo code entered by the user on the deposit form"
+    },
     "status": {
       "type": "string",
       "enum": [
