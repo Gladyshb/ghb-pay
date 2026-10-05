@@ -109,8 +109,10 @@ export default function Home() {
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="text-xs text-emerald-400 font-medium">{c.buy_rate || "—"}</div>
-                  <div className="text-xs text-[#E8C65A]">{c.sell_rate || "—"}</div>
+                  <div className="text-[9px] text-emerald-400/70 uppercase leading-none">Achat</div>
+                  <div className="text-xs text-emerald-400 font-medium">{Number(c.buy_rate || 0).toLocaleString("en-US", { maximumFractionDigits: 2 })}</div>
+                  <div className="text-[9px] text-muted-foreground uppercase leading-none mt-1">Vente</div>
+                  <div className="text-xs text-foreground font-medium">{Number(c.sell_rate || 0).toLocaleString("en-US", { maximumFractionDigits: 2 })}</div>
                 </div>
               </div>
             ))}

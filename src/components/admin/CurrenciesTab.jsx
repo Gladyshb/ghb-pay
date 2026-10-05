@@ -8,7 +8,24 @@ import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Loader2, Plus, Pencil, Trash2, Coins, RefreshCw, Zap, Lock } from "lucide-react";
 
-const empty = { code: "", name: "", symbol: "", flag_emoji: "", type: "fiat", binance_rate: 0, fee_percent: 5, buy_rate: 0, sell_rate: 0, manual_override: false, active: true };
+const empty = { code: "", name: "", symbol: "", flag_emoji: "", type: "fiat", binance_rate: 0, fee_percent: 5, spread_fixed: 0, buy_rate: 0, sell_rate: 0, manual_override: false, active: true };
+
+// Buy = reference + spread (GREEN) · Sell = reference - spread (WHITE)
+function computeRates(ref, feePercent, spreadFixed) {
+  const r = Number(ref) || 0;
+  const fee = Number(feePercent) || 0;
+  const spread = Number(spreadFixed) || 0;
+  if (!r) return { buy: 0, sell: 0 };
+  let buy, sell;
+  if (spread > 0) {
+    buy = +(r + spread).toFixed(4);
+    sell = +Math.max(0, r - spread).toFixed(4);
+  } else {
+    buy = +(r * (1 + fee / 100)).toFixed(4);
+    sell = +(r * (1 - fee / 100)).toFixed(4);
+  }
+  return { buy, sell };
+}
 
 export default function CurrenciesTab() {
   const [items, setItems] = useState([]);
@@ -27,21 +44,13 @@ export default function CurrenciesTab() {
   };
   useEffect(load, []);
 
-  const recompute = (c, fee) => {
-    const r = Number(c.binance_rate) || 0;
-    const f = Number(fee) || 0;
-    if (!r) return { fee_percent: f };
-    return {
-      fee_percent: f,
-      sell_rate: +(r * (1 + f / 100)).toFixed(4),
-      buy_rate: +(r * (1 - f / 100)).toFixed(4),
-    };
-  };
-
-  const updateFee = async (c, fee) => {
-    const f = Math.max(0, Number(fee) || 0);
-    if (f === Number(c.fee_percent ?? 5)) return;
-    await base44.entities.Currency.update(c.id, recompute(c, f));
+  // Recompute Buy/Sell when fee or spread changes inline.
+  const updateSpread = async (c, feeVal, spreadVal) => {
+    const fee = Math.max(0, Number(feeVal) || 0);
+    const spread = Math.max(0, Number(spreadVal) || 0);
+    if (fee === Number(c.fee_percent ?? 5) && spread === Number(c.spread_fixed ?? 0)) return;
+    const { buy, sell } = computeRates(c.binance_rate, fee, spread);
+    await base44.entities.Currency.update(c.id, { fee_percent: fee, spread_fixed: spread, buy_rate: buy, sell_rate: sell });
     load();
   };
 
@@ -61,12 +70,17 @@ export default function CurrenciesTab() {
   const save = async () => {
     setSaving(true);
     try {
+      const ref = Number(form.binance_rate) || 0;
+      const fee = Number(form.fee_percent) || 0;
+      const spread = Number(form.spread_fixed) || 0;
+      const { buy, sell } = computeRates(ref, fee, spread);
       const payload = {
         ...form,
-        fee_percent: Number(form.fee_percent) || 0,
-        buy_rate: Number(form.buy_rate) || 0,
-        sell_rate: Number(form.sell_rate) || 0,
-        binance_rate: Number(form.binance_rate) || 0,
+        binance_rate: ref,
+        fee_percent: fee,
+        spread_fixed: spread,
+        buy_rate: buy,
+        sell_rate: sell,
       };
       if (editing === "new") await base44.entities.Currency.create(payload);
       else await base44.entities.Currency.update(editing, payload);
@@ -90,7 +104,7 @@ export default function CurrenciesTab() {
             <Zap className="w-4 h-4 text-[#D4AF37]" />
             <div>
               <div className="text-sm font-semibold text-foreground">Source des taux : Binance P2P (USDT)</div>
-              <div className="text-[11px] text-muted-foreground">Rafraîchissement automatique toutes les heures</div>
+              <div className="text-[11px] text-muted-foreground">Rafraîchissement automatique toutes les 12h · Référence manuelle pour les devises verrouillées</div>
             </div>
           </div>
           <Button onClick={sync} disabled={syncing} size="sm" className="ghb-emerald-bg text-white">
@@ -99,7 +113,7 @@ export default function CurrenciesTab() {
         </div>
         {syncInfo && (
           <div className="text-[11px] text-muted-foreground">
-            Synchronisé : {syncInfo.synced} devise(s) · source : {syncInfo.source === "binance" ? "Binance P2P" : syncInfo.source === "fallback" ? "API de marché (repli)" : "—"}
+            Synchronisé : {syncInfo.synced} devise(s) · source : {syncInfo.source === "binance" ? "Binance P2P" : syncInfo.source === "fallback" ? "API de marché (repli)" : syncInfo.source === "manual" ? "Référence manuelle" : "—"}
           </div>
         )}
       </div>
@@ -113,6 +127,7 @@ export default function CurrenciesTab() {
         {items.map((c) => {
           const isBase = c.code === "USD" || c.code === "USDT";
           const fee = Number(c.fee_percent ?? 5);
+          const spread = Number(c.spread_fixed ?? 0);
           return (
             <div key={c.id} className="ghb-card rounded-2xl p-4 space-y-3">
               <div className="flex items-center justify-between gap-3">
@@ -122,7 +137,7 @@ export default function CurrenciesTab() {
                     <div className="flex items-center gap-2">
                       <span className="font-semibold text-foreground">{c.code}</span>
                       <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/5 text-muted-foreground">{c.type}</span>
-                      {c.manual_override && <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#D4AF37]/10 text-[#E8C65A] flex items-center gap-1"><Lock className="w-2.5 h-2.5" /> manuel</span>}
+                      {c.manual_override && <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#D4AF37]/10 text-[#E8C65A] flex items-center gap-1"><Lock className="w-2.5 h-2.5" /> réf. manuelle</span>}
                     </div>
                     <div className="text-xs text-muted-foreground truncate">{c.name}</div>
                   </div>
@@ -134,34 +149,41 @@ export default function CurrenciesTab() {
                 </div>
               </div>
 
-              {/* Rates grid */}
+              {/* Rates grid: Référence (neutre) · Achat GREEN (higher) · Vente WHITE (lower) */}
               <div className="grid grid-cols-3 gap-2 text-center">
                 <div className="rounded-lg bg-white/[0.03] py-2 px-1">
-                  <div className="text-[9px] uppercase text-muted-foreground">Binance live</div>
+                  <div className="text-[9px] uppercase text-muted-foreground">Référence</div>
                   <div className="text-sm font-semibold text-foreground truncate">{Number(c.binance_rate || 0).toLocaleString("en-US", { maximumFractionDigits: 4 })}</div>
                 </div>
-                <div className="rounded-lg bg-emerald-500/[0.06] py-2 px-1">
-                  <div className="text-[9px] uppercase text-muted-foreground">Achat (client vend)</div>
+                <div className="rounded-lg bg-emerald-500/[0.07] py-2 px-1 ring-1 ring-emerald-500/20">
+                  <div className="text-[9px] uppercase text-emerald-400/80">Achat (client achète USDT)</div>
                   <div className="text-sm font-semibold text-emerald-400 truncate">{Number(c.buy_rate || 0).toLocaleString("en-US", { maximumFractionDigits: 4 })}</div>
                 </div>
-                <div className="rounded-lg bg-[#D4AF37]/[0.06] py-2 px-1">
-                  <div className="text-[9px] uppercase text-muted-foreground">Vente (client achète)</div>
-                  <div className="text-sm font-semibold text-[#E8C65A] truncate">{Number(c.sell_rate || 0).toLocaleString("en-US", { maximumFractionDigits: 4 })}</div>
+                <div className="rounded-lg bg-white/[0.06] py-2 px-1 ring-1 ring-white/10">
+                  <div className="text-[9px] uppercase text-muted-foreground">Vente (client vend USDT)</div>
+                  <div className="text-sm font-semibold text-foreground truncate">{Number(c.sell_rate || 0).toLocaleString("en-US", { maximumFractionDigits: 4 })}</div>
                 </div>
               </div>
 
-              {/* Fee editor */}
+              {/* Spread / Fee editor */}
               {!isBase && (
-                <div className="flex items-center gap-2">
-                  <Label className="text-[11px] text-muted-foreground whitespace-nowrap">Fee %</Label>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Label className="text-[11px] text-muted-foreground whitespace-nowrap">Spread fixe</Label>
+                  <Input
+                    type="number" min="0" step="1" defaultValue={spread}
+                    onBlur={(e) => updateSpread(c, fee, e.target.value)}
+                    className="h-8 bg-white/5 border-white/10 text-sm w-20"
+                    placeholder="0"
+                  />
+                  <Label className="text-[11px] text-muted-foreground whitespace-nowrap ml-1">ou Fee %</Label>
                   <Input
                     type="number" min="0" step="0.1" defaultValue={fee}
-                    onBlur={(e) => updateFee(c, e.target.value)}
+                    onBlur={(e) => updateSpread(c, e.target.value, spread)}
                     className="h-8 bg-white/5 border-white/10 text-sm w-20"
                   />
-                  <span className="text-[10px] text-muted-foreground">Achat = Binance − Fee · Vente = Binance + Fee</span>
+                  <span className="text-[10px] text-muted-foreground">Achat = Réf + Spread · Vente = Réf − Spread</span>
                   <button onClick={() => toggleManual(c)} className={`ml-auto text-[10px] flex items-center gap-1 px-2 py-1 rounded-full ${c.manual_override ? "bg-[#D4AF37]/10 text-[#E8C65A]" : "bg-white/5 text-muted-foreground"}`}>
-                    <Lock className="w-2.5 h-2.5" /> {c.manual_override ? "Auto OFF" : "Auto ON"}
+                    <Lock className="w-2.5 h-2.5" /> {c.manual_override ? "Réf manuelle" : "Réf auto"}
                   </button>
                 </div>
               )}
@@ -190,13 +212,17 @@ export default function CurrenciesTab() {
                 </Select>
               </Field>
             </div>
-            <Field label="Fee % (marge appliquée sur le taux Binance)"><Input type="number" min="0" step="0.1" value={form.fee_percent} onChange={(e) => setForm({ ...form, fee_percent: e.target.value })} className="bg-white/5 border-white/10" /></Field>
+            <Field label="Taux de référence (par USD) — ex: 6000 pour le BIF"><Input type="number" min="0" step="0.0001" value={form.binance_rate} onChange={(e) => setForm({ ...form, binance_rate: e.target.value })} className="bg-white/5 border-white/10" /></Field>
             <div className="grid grid-cols-2 gap-3">
-              <Field label="Taux d'achat (par USD)"><Input type="number" step="0.0001" value={form.buy_rate} onChange={(e) => setForm({ ...form, buy_rate: e.target.value })} className="bg-white/5 border-white/10" /></Field>
-              <Field label="Taux de vente (par USD)"><Input type="number" step="0.0001" value={form.sell_rate} onChange={(e) => setForm({ ...form, sell_rate: e.target.value })} className="bg-white/5 border-white/10" /></Field>
+              <Field label="Spread fixe (ex: 150)"><Input type="number" min="0" step="1" value={form.spread_fixed} onChange={(e) => setForm({ ...form, spread_fixed: e.target.value })} className="bg-white/5 border-white/10" /></Field>
+              <Field label="Fee % (si spread = 0)"><Input type="number" min="0" step="0.1" value={form.fee_percent} onChange={(e) => setForm({ ...form, fee_percent: e.target.value })} className="bg-white/5 border-white/10" /></Field>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Taux Achat (auto = Réf + Spread)"><Input type="number" step="0.0001" value={computeRates(form.binance_rate, form.fee_percent, form.spread_fixed).buy} disabled className="bg-white/5 border-white/10 text-emerald-400" /></Field>
+              <Field label="Taux Vente (auto = Réf − Spread)"><Input type="number" step="0.0001" value={computeRates(form.binance_rate, form.fee_percent, form.spread_fixed).sell} disabled className="bg-white/5 border-white/10" /></Field>
             </div>
             <label className="flex items-center gap-2 text-sm text-foreground">
-              <input type="checkbox" checked={form.manual_override} onChange={(e) => setForm({ ...form, manual_override: e.target.checked })} className="accent-[#D4AF37]" /> Verrouillage manuel (la synchro Binance ne remplace pas ces taux)
+              <input type="checkbox" checked={form.manual_override} onChange={(e) => setForm({ ...form, manual_override: e.target.checked })} className="accent-[#D4AF37]" /> Référence manuelle (la synchro auto ne remplace PAS le taux de référence ; Buy/Sell restent calculés)
             </label>
             <label className="flex items-center gap-2 text-sm text-foreground">
               <input type="checkbox" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} className="accent-[#D4AF37]" /> Devise active

@@ -46,6 +46,24 @@ async function fallbackRates() {
   }
 }
 
+// Compute client Buy/Sell rates from a reference rate.
+// Buy  = reference + spread  (user BUYS USDT, pays MORE local currency) -> GREEN
+// Sell = reference - spread  (user SELLS USDT, gets LESS local currency) -> WHITE
+function computeRates(ref, feePercent, spreadFixed) {
+  const r = Number(ref) || 0;
+  const fee = Number(feePercent) || 0;
+  const spread = Number(spreadFixed) || 0;
+  let buy, sell;
+  if (spread > 0) {
+    buy = +(r + spread).toFixed(4);
+    sell = +Math.max(0, r - spread).toFixed(4);
+  } else {
+    buy = +(r * (1 + fee / 100)).toFixed(4);
+    sell = +(r * (1 - fee / 100)).toFixed(4);
+  }
+  return { buy, sell };
+}
+
 export default async function(req) {
   try {
     const base44 = createClientFromRequest(req);
@@ -62,67 +80,74 @@ export default async function(req) {
     const cur = base44.asServiceRole.entities.Currency;
     const { items } = await cur.filter({}, { limit: 100 });
 
-    // Probe Binance P2P reachability once; if blocked (Cloudflare 403), use the fallback batch.
-    const fiats = items.filter((c) => {
+    // Only auto-fetch the reference rate for non-base currencies NOT under manual override.
+    const autoFiats = items.filter((c) => {
       const code = (c.code || "").toUpperCase();
-      return code !== "USD" && code !== "USDT";
+      return code !== "USD" && code !== "USDT" && !c.manual_override;
     });
+
+    // Probe Binance P2P reachability once; if blocked (Cloudflare 403), use the fallback batch.
     let useBinance = false;
-    if (fiats.length) {
-      const probe = await p2pPrice(FIAT_MAP[fiats[0].code] || fiats[0].code, "SELL");
+    if (autoFiats.length) {
+      const probe = await p2pPrice(FIAT_MAP[autoFiats[0].code] || autoFiats[0].code, "SELL");
       useBinance = !!probe;
     }
     let erRates = null;
     if (!useBinance) erRates = await fallbackRates();
 
+    const now = new Date().toISOString();
     const results = [];
+
     for (const c of items) {
       const code = (c.code || "").toUpperCase();
-      let binanceRate = 0;
-      let source = "none";
+      const fee = Number(c.fee_percent ?? 5);
+      const spreadFixed = Number(c.spread_fixed ?? 0);
 
+      // Base currencies (USD/USDT) carry no margin.
       if (code === "USD" || code === "USDT") {
-        binanceRate = 1;
-        source = "base";
+        await cur.update(c.id, { binance_rate: 1, buy_rate: 1, sell_rate: 1, last_synced_at: now });
+        results.push({ code, ref: 1, buy: 1, sell: 1, source: "base", manual: false });
+        continue;
+      }
+
+      // Resolve the reference rate.
+      let ref = Number(c.binance_rate) || 0;
+      let source = "manual";
+      if (c.manual_override) {
+        source = "manual"; // admin-controlled reference (e.g. BIF = 6000)
       } else if (useBinance) {
         const fiat = FIAT_MAP[code] || code;
         const ask = await p2pPrice(fiat, "SELL");
         const bid = await p2pPrice(fiat, "BUY");
-        if (ask && bid) binanceRate = (ask + bid) / 2;
-        else if (ask) binanceRate = ask;
-        else if (bid) binanceRate = bid;
+        if (ask && bid) ref = (ask + bid) / 2;
+        else if (ask) ref = ask;
+        else if (bid) ref = bid;
         source = "binance";
       } else if (erRates) {
         const r = erRates[FIAT_MAP[code] || code] || erRates[code];
-        if (r) binanceRate = r;
+        if (r) ref = r;
         source = "fallback";
       }
 
-      if (!binanceRate || binanceRate <= 0) {
+      if (!ref || ref <= 0) {
         results.push({ code, status: "no_rate", source });
         continue;
       }
 
-      const now = new Date().toISOString();
-      const update = { binance_rate: +binanceRate.toFixed(4), last_synced_at: now };
-
-      // Base currencies (USD/USDT) carry no margin.
-      if (code === "USD" || code === "USDT") {
-        if (!c.manual_override) { update.buy_rate = 1; update.sell_rate = 1; }
-        results.push({ code, binance: 1, source, manual: !!c.manual_override });
-        await cur.update(c.id, update);
-        continue;
-      }
-
-      const fee = Number(c.fee_percent ?? 5);
-      const sellRate = +(binanceRate * (1 + fee / 100)).toFixed(4);
-      const buyRate = +(binanceRate * (1 - fee / 100)).toFixed(4);
-      if (!c.manual_override) { update.sell_rate = sellRate; update.buy_rate = buyRate; }
+      const { buy, sell } = computeRates(ref, fee, spreadFixed);
+      const update = {
+        buy_rate: buy,
+        sell_rate: sell,
+        last_synced_at: now,
+      };
+      // Only overwrite the reference when it was auto-fetched (manual = admin keeps it).
+      if (!c.manual_override) update.binance_rate = +ref.toFixed(4);
       await cur.update(c.id, update);
-      results.push({ code, binance: +binanceRate.toFixed(4), fee, sell: sellRate, buy: buyRate, source, manual: !!c.manual_override });
+      results.push({ code, ref: +ref.toFixed(4), buy, sell, source, manual: !!c.manual_override });
     }
 
-    return Response.json({ ok: true, source: useBinance ? "binance" : (erRates ? "fallback" : "none"), synced: results.length, results });
+    const overall = useBinance ? "binance" : (erRates ? "fallback" : "manual");
+    return Response.json({ ok: true, source: overall, synced: results.length, results });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
   }

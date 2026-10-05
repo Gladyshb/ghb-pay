@@ -30,31 +30,36 @@
     "binance_rate": {
       "type": "number",
       "default": 0,
-      "description": "Live Binance P2P USDT market rate for this fiat (per USD). Source of truth for buy/sell computation."
+      "description": "Taux de reference (par USD). Source Binance P2P en auto, ou valeur manuelle definie par l'admin lorsque manual_override est actif."
     },
     "fee_percent": {
       "type": "number",
       "default": 5,
-      "description": "Margin / fee percentage applied on top of the Binance rate (admin-configurable per currency)."
+      "description": "Marge en pourcentage appliquee au taux de reference lorsque spread_fixed = 0. Buy = ref * (1 + fee%), Sell = ref * (1 - fee%)."
+    },
+    "spread_fixed": {
+      "type": "number",
+      "default": 0,
+      "description": "Spread fixe en unites de la devise (ex: 150 BIF). Prioritaire sur fee_percent. Buy = reference + spread, Sell = reference - spread."
     },
     "buy_rate": {
       "type": "number",
       "default": 0,
-      "description": "Rate at which the platform buys this currency (per USD) = Binance rate - fee%"
+      "description": "Taux d'achat client (par USD) = reference + spread. Affiche en VERT. Prix auquel l'utilisateur achete des USDT (superieur au taux de reference)."
     },
     "sell_rate": {
       "type": "number",
       "default": 0,
-      "description": "Rate at which the platform sells this currency (per USD) = Binance rate + fee%"
+      "description": "Taux de vente client (par USD) = reference - spread. Affiche en BLANC. Prix auquel l'utilisateur vend des USDT (inferieur au taux de reference)."
     },
     "manual_override": {
       "type": "boolean",
       "default": false,
-      "description": "When true, Binance sync keeps the live rate display but does NOT overwrite buy_rate/sell_rate (admin manual values preserved)."
+      "description": "Si vrai, la synchro auto ne remplace PAS le taux de reference (l'admin le definit manuellement). Les taux Buy/Sell restent calcules automatiquement a partir de la reference + spread."
     },
     "last_synced_at": {
       "type": "string",
-      "description": "ISO timestamp of the last Binance rate sync for this currency"
+      "description": "ISO timestamp of the last rate sync for this currency"
     },
     "active": {
       "type": "boolean",

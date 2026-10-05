@@ -10,9 +10,9 @@ import { Loader2, Plus, Pencil, Trash2, Power, MapPin } from "lucide-react";
 
 const TYPES = [
   { value: "mobile_money", label: "Mobile Money" },
-  { value: "bank", label: "Banque" },
+  { value: "bank", label: "Banque locale" },
   { value: "crypto", label: "Crypto / USDT" },
-  { value: "international", label: "International" },
+  { value: "international", label: "Compte international" },
 ];
 
 const empty = { provider: "", type: "mobile_money", label: "", account_info: "", account_holder: "", currency: "USD", country: "", network: "", instructions: "", active: true };
