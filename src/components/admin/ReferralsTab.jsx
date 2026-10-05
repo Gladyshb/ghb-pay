@@ -83,7 +83,7 @@ export default function ReferralsTab() {
             <Select value={setting.commission_type} onValueChange={(v) => setSetting({ ...setting, commission_type: v })}>
               <SelectTrigger className="bg-white/5 border-white/10"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="percent">Pourcentage (%)</SelectItem>
+                <SelectItem value="percent">Pourcentage des frais (%)</SelectItem>
                 <SelectItem value="fixed">Montant fixe (USD)</SelectItem>
               </SelectContent>
             </Select>
@@ -97,7 +97,7 @@ export default function ReferralsTab() {
           <Switch checked={setting.active} onCheckedChange={(v) => setSetting({ ...setting, active: v })} /> Programme actif
         </label>
         <div className="text-xs text-muted-foreground">
-          La récompense est créditée automatiquement sur le solde du parrain lors de la validation du premier transfert du filleul.
+          Versée uniquement sur le 1er transfert validé du filleul. En mode « Pourcentage des frais », la commission = % choisi × frais perçus par l'application sur ce transfert (marge de la devise).
         </div>
         <Button onClick={saveSetting} disabled={busy} className="ghb-emerald-bg text-white w-full">
           {busy ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Save className="w-4 h-4 mr-1" />} Enregistrer les paramètres
@@ -108,7 +108,7 @@ export default function ReferralsTab() {
       <div className="grid grid-cols-3 gap-3">
         <Stat icon={Users} label="Parrainages" value={items.length} />
         <Stat icon={Gift} label="Récompensés" value={items.filter((i) => i.status === "rewarded").length} tone="emerald" />
-        <Stat icon={Gift} label="Total crédité" value={`$${totalEarned.toFixed(2)}`} tone="gold" />
+        <Stat icon={Gift} label="Commissions 1ers transferts" value={`$${totalEarned.toFixed(2)}`} tone="gold" />
       </div>
 
       {/* Sponsors summary */}

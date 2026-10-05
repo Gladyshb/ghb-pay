@@ -9,12 +9,12 @@
         "fixed"
       ],
       "default": "percent",
-      "description": "Whether commission is a percentage of the transfer or a fixed amount"
+      "description": "percent = percentage of the app fees collected on the referred user's first validated transfer; fixed = flat USD amount credited to the referrer"
     },
     "commission_value": {
       "type": "number",
-      "default": 5,
-      "description": "Commission value (percent or fixed USD amount)"
+      "default": 20,
+      "description": "In percent mode: percentage of the app fees paid to the referrer (default 20). In fixed mode: flat USD amount."
     },
     "active": {
       "type": "boolean",

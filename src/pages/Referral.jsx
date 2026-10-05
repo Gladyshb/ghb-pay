@@ -207,8 +207,13 @@ export default function Referral() {
                     </td>
                     <td className="py-2.5 pr-3 text-xs text-muted-foreground whitespace-nowrap">{formatDate(r.created_date)}</td>
                     <td className="py-2.5 pr-3"><StatusBadge meta={REF_STATUS} status={r.status} /></td>
-                    <td className="py-2.5 text-right text-xs font-medium text-[#E8C65A] whitespace-nowrap">
-                      {r.reward_amount > 0 ? `+${formatMoney(r.reward_amount, "USD")}` : "—"}
+                    <td className="py-2.5 text-right">
+                      {r.reward_amount > 0 ? (
+                        <div className="whitespace-nowrap">
+                          <div className="text-xs font-medium text-[#E8C65A]">+{formatMoney(r.reward_amount, "USD")}</div>
+                          <div className="text-[9px] text-muted-foreground">Commission du 1er transfert créditée</div>
+                        </div>
+                      ) : <span className="text-xs text-muted-foreground">—</span>}
                     </td>
                   </tr>
                 ))}

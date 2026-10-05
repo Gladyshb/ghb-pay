@@ -46,7 +46,7 @@ export default function TransfersTab() {
     try {
       await base44.entities.TransferRequest.update(viewing.id, { status: "completed", receipt_uri: receipt });
       await debitWallet(viewing.user_id, viewing.amount);
-      await processReferralReward({ id: viewing.id, user_id: viewing.user_id, amount: viewing.amount });
+      await processReferralReward({ id: viewing.id, user_id: viewing.user_id, amount: viewing.amount, to_currency: viewing.to_currency });
       setViewing(null); load();
     } catch (e) { alert(e.message); } finally { setBusy(false); }
   };

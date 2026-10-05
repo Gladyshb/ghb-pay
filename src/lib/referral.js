@@ -12,19 +12,22 @@ export async function ensureReferralCode(user) {
   return code;
 }
 
-// Called from the admin transfer-completion flow: if the transfer user was
-// referred and this is their first validated transfer, credit the referrer.
+// Called from the admin transfer-completion flow: credits the referrer ONLY on
+// the referred user's first validated transfer. The reward equals a configured
+// percentage of the fees collected by the app on that transfer (or a fixed amount).
 export async function processReferralReward(transfer) {
   try {
     const user = await base44.entities.User.get(transfer.user_id);
     const referrerId = user?.referred_by;
     if (!referrerId) return { rewarded: false, reason: "no_referrer" };
 
+    // First transfer only: a pending referral must exist. Once rewarded, it is no
+    // longer pending, so subsequent transfers of the same filleul find nothing.
     const { items } = await base44.entities.Referral.filter(
       { referred_id: transfer.user_id, status: "pending" },
       { limit: 1 }
     );
-    if (items.length === 0) return { rewarded: false, reason: "no_pending_referral" };
+    if (items.length === 0) return { rewarded: false, reason: "not_first_transfer" };
     const referral = items[0];
 
     const { items: settings } = await base44.entities.ReferralSetting.filter(
@@ -34,13 +37,23 @@ export async function processReferralReward(transfer) {
     const setting = settings[0];
     if (!setting) return { rewarded: false, reason: "no_setting" };
 
+    // App fee collected on this transfer = margin on the payout currency.
+    const toCur = (transfer.to_currency || "").toUpperCase();
+    let appFeeUsd = 0;
+    if (toCur !== "USD" && toCur !== "USDT") {
+      const { items: curs } = await base44.entities.Currency.filter({ code: toCur }, { limit: 1 });
+      const cur = curs[0];
+      const feePercent = Number(cur?.fee_percent ?? 5);
+      appFeeUsd = (Number(transfer.amount || 0) * feePercent) / 100;
+    }
+
     let reward = 0;
     if (setting.commission_type === "percent") {
-      reward = (Number(transfer.amount || 0) * (setting.commission_value || 0)) / 100;
+      reward = (appFeeUsd * (setting.commission_value || 0)) / 100;
     } else {
       reward = Number(setting.commission_value || 0);
     }
-    if (reward <= 0) return { rewarded: false, reason: "zero_reward" };
+    if (reward <= 0) return { rewarded: false, reason: "zero_reward", appFeeUsd };
 
     const { items: wallets } = await base44.entities.Wallet.filter(
       { user_id: referrerId },
@@ -60,7 +73,7 @@ export async function processReferralReward(transfer) {
       reward_amount: reward,
       first_transfer_id: transfer.id,
     });
-    return { rewarded: true, reward };
+    return { rewarded: true, reward, appFeeUsd };
   } catch (e) {
     return { rewarded: false, error: e.message };
   }
