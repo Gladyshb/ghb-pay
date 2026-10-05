@@ -30,11 +30,15 @@ export default function Admin() {
       </div>
 
       <Tabs value={tab} onValueChange={setTab}>
-        <TabsList className="flex w-full overflow-x-auto no-scrollbar bg-white/5 border border-white/10 h-auto p-1.5 gap-1">
+        <button type="button" onClick={() => setTab("addresses")} className="sm:hidden flex w-full items-center gap-3 rounded-xl border border-border bg-secondary p-3 mb-3 text-left text-secondary-foreground">
+          <MapPin className="w-5 h-5 shrink-0 text-accent" />
+          <span><span className="block text-sm font-semibold">Moyens de paiement</span><span className="block text-xs text-muted-foreground">Ajouter et modifier les méthodes et adresses de dépôt</span></span>
+        </button>
+        <TabsList className="flex justify-start w-full overflow-x-auto bg-secondary border border-border h-auto p-1.5 gap-1">
           <Tab v="kyc" icon={ShieldCheck} label="KYC" />
           <Tab v="deposits" icon={ArrowDownToLine} label="Dépôts" />
           <Tab v="transfers" icon={ArrowUpFromLine} label="Transferts" />
-          <Tab v="addresses" icon={MapPin} label="Adresses" />
+          <Tab v="addresses" icon={MapPin} label="Moyens de paiement" />
           <Tab v="currencies" icon={Coins} label="Devises" />
           <Tab v="support" icon={LifeBuoy} label="Support" />
           <Tab v="inbox" icon={Inbox} label="Messagerie" />

@@ -60,7 +60,7 @@ export default function AddressesTab() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <div className="text-sm text-muted-foreground">{items.length} adresse(s)</div>
+        <h2 className="text-sm font-semibold text-foreground">Méthodes & adresses de dépôt</h2>
         <Button onClick={openNew} size="sm" className="ghb-gold-bg text-black"><Plus className="w-4 h-4 mr-1" /> Ajouter</Button>
       </div>
       <div className="space-y-2.5">
@@ -97,11 +97,11 @@ export default function AddressesTab() {
 
       <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
         <DialogContent className="bg-card border-white/10 max-w-lg max-h-[85vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>{editing === "new" ? "Nouvelle adresse" : "Modifier l'adresse"}</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{editing === "new" ? "Nouveau moyen de paiement" : "Modifier le moyen de paiement"}</DialogTitle></DialogHeader>
           <div className="space-y-3">
-            <Field label="Fournisseur"><Input value={form.provider} onChange={(e) => setForm({ ...form, provider: e.target.value })} className="bg-white/5 border-white/10" placeholder="Lumicash, Zelle, USDT TRC20…" /></Field>
+            <Field label="Nom de la méthode"><Input value={form.provider} onChange={(e) => setForm({ ...form, provider: e.target.value })} className="bg-white/5 border-white/10" placeholder="Lumicash, Zelle, USDT TRC20…" /></Field>
             <div className="grid grid-cols-2 gap-3">
-              <Field label="Type">
+              <Field label="Catégorie">
                 <Select value={form.type} onValueChange={(v) => setForm({ ...form, type: v })}>
                   <SelectTrigger className="bg-white/5 border-white/10"><SelectValue /></SelectTrigger>
                   <SelectContent>{TYPES.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
