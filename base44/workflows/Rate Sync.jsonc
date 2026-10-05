@@ -1,5 +1,5 @@
 {
-  "description": "Synchronise automatiquement les taux de change depuis Binance P2P (USDT) toutes les heures et recalcule les prix Achat/Vente avec la marge configur\u00e9e.",
+  "description": "Synchronise automatiquement les taux de change depuis Binance P2P (USDT) toutes les 12 heures et recalcule les prix Achat/Vente avec la marge configur\u00e9e.",
   "name": "Rate Sync",
   "trigger": {
     "condition": null,
@@ -7,7 +7,7 @@
       "trigger_type": "scheduled",
       "events": [],
       "schedule_mode": "recurring",
-      "cron_expression": "0 * * * *",
+      "cron_expression": "0 */12 * * *",
       "one_time_date": null,
       "timezone": "Africa/Bujumbura",
       "interval_value": null,
@@ -22,7 +22,7 @@
     "document": {
       "dsl": "1.0.0",
       "name": "rate_sync",
-      "version": "1.0",
+      "version": "1.1",
       "namespace": "base44"
     },
     "do": [
@@ -36,7 +36,7 @@
           "then": "end",
           "x-base44": {
             "title": "Synchroniser Binance",
-            "description": "Rafra\u00eechit les taux P2P USDT"
+            "description": "Rafra\u00eechit les taux P2P USDT toutes les 12h"
           }
         }
       }
