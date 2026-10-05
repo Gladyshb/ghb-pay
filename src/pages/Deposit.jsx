@@ -162,7 +162,9 @@ export default function Deposit() {
               </div>
               <div className="space-y-2">
                 <Label>Devise</Label>
-                <Input value={currency} onChange={(e) => setCurrency(e.target.value)} className="bg-white/5 border-white/10 h-11" />
+                <div className="h-11 flex items-center px-3 rounded-md bg-white/[0.03] border border-white/10 text-sm text-foreground font-medium">
+                  {currency} <span className="text-[10px] text-muted-foreground ml-2">(liée à la méthode)</span>
+                </div>
               </div>
             </div>
             <div className="space-y-2">
