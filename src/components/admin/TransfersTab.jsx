@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { base44 } from "@/api/base44Client";
-import { formatMoney, formatDate, TRANSFER_STATUS, signFile } from "@/lib/ghb";
+import { formatMoney, formatDate, TRANSFER_STATUS, signFile, getBalances, withDebit } from "@/lib/ghb";
 import { processReferralReward } from "@/lib/referral";
 import StatusBadge from "@/components/ghb/StatusBadge";
 import FileUpload from "@/components/ghb/FileUpload";
@@ -33,11 +33,12 @@ export default function TransfersTab() {
     if (t.receipt_uri) { try { setReceiptUrl(await signFile(t.receipt_uri)); } catch {} }
   };
 
-  const debitWallet = async (userId, amount) => {
+  const debitWallet = async (userId, currency, amount) => {
     const { items } = await base44.entities.Wallet.filter({ user_id: userId }, { limit: 1 });
     if (items.length > 0) {
       const w = items[0];
-      await base44.entities.Wallet.update(w.id, { balance: Math.max(0, (w.balance || 0) - amount) });
+      const balances = withDebit(getBalances(w), currency, amount);
+      await base44.entities.Wallet.update(w.id, { balances });
     }
   };
 
@@ -45,7 +46,7 @@ export default function TransfersTab() {
     setBusy(true);
     try {
       await base44.entities.TransferRequest.update(viewing.id, { status: "completed", receipt_uri: receipt });
-      await debitWallet(viewing.user_id, viewing.amount);
+      await debitWallet(viewing.user_id, viewing.from_currency, viewing.amount);
       await processReferralReward({ id: viewing.id, user_id: viewing.user_id, amount: viewing.amount, to_currency: viewing.to_currency });
       setViewing(null); load();
     } catch (e) { alert(e.message); } finally { setBusy(false); }

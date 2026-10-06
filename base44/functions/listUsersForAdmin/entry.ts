@@ -1,6 +1,8 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.52';
 import { secrets } from 'base44:runtime';
 
+// Lists app users for the admin console. Pass { filter } in the body to narrow
+// the query (e.g. pending KYC). An empty filter returns every user.
 export default async function(req) {
   try {
     const base44 = createClientFromRequest(req);
@@ -8,12 +10,17 @@ export default async function(req) {
     if (!caller) return Response.json({ error: 'Unauthorized' }, { status: 401 });
     if (caller.role !== 'admin') return Response.json({ error: 'Forbidden' }, { status: 403 });
 
+    let filter = {};
+    try {
+      const body = await req.json();
+      if (body && body.filter && typeof body.filter === 'object') filter = body.filter;
+    } catch { /* no body — return all */ }
+
     const appId = secrets.get("BASE44_APP_ID");
     const auth = req.headers.get('authorization');
-    const filter = { kyc_status: { $in: ['pending', 'rejected'] } };
     const u = new URL(`https://app.base44.com/api/apps/${appId}/entities/User`);
     u.searchParams.set('q', JSON.stringify(filter));
-    u.searchParams.set('limit', '200');
+    u.searchParams.set('limit', '500');
     u.searchParams.set('sort', '-created_date');
 
     const res = await fetch(u, { headers: auth ? { authorization: auth } : {} });
@@ -27,8 +34,10 @@ export default async function(req) {
       id: x.id, email: x.email, full_name: x.full_name, role: x.role,
       kyc_status: x.kyc_status, legal_name: x.legal_name, phone: x.phone,
       country: x.country, id_document_type: x.id_document_type,
-      id_document_uri: x.id_document_uri, kyc_rejection_reason: x.kyc_rejection_reason,
-      created_date: x.created_date,
+      id_document_uri: x.id_document_uri, face_uri: x.face_uri,
+      kyc_rejection_reason: x.kyc_rejection_reason, username: x.username,
+      referral_code: x.referral_code, referred_by: x.referred_by,
+      disabled: x.disabled, created_date: x.created_date,
     }));
     return Response.json({ items });
   } catch (error) {

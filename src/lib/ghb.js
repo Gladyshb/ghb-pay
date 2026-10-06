@@ -78,9 +78,63 @@ export function useCurrentUser() {
   return { user, loading, refresh };
 }
 
-// Hook: current user's wallet (admin-only writes, so this is read-only for users)
+// Multi-currency wallet helpers.
+// balances is a map of currency code -> amount. Old single-balance wallets are
+// treated as { USD: balance } for migration.
+export function getBalances(wallet) {
+  if (wallet?.balances && typeof wallet.balances === "object") return { ...wallet.balances };
+  if (wallet && typeof wallet.balance === "number") return { USD: wallet.balance };
+  return {};
+}
+
+// Convert an amount of `code` into USD using the currency's buy_rate (client
+// spends `code` to acquire USD -> higher rate -> fewer USD = app margin).
+export function toUsd(amount, code, currencies) {
+  const a = Number(amount) || 0;
+  if (!a) return 0;
+  if (code === "USD") return a;
+  const c = (currencies || []).find((x) => x.code === code);
+  const rate = Number(c?.buy_rate) || 0;
+  if (rate > 0) return a / rate;
+  return code === "USDT" ? a : 0;
+}
+
+// Convert USD into `code` using the currency's sell_rate (app pays out `code`
+// per USD -> lower rate -> less `code` = app margin).
+export function fromUsd(usd, code, currencies) {
+  const a = Number(usd) || 0;
+  if (!a) return 0;
+  if (code === "USD") return a;
+  const c = (currencies || []).find((x) => x.code === code);
+  const rate = Number(c?.sell_rate) || 0;
+  if (rate > 0) return a * rate;
+  return code === "USDT" ? a : 0;
+}
+
+// Convert between any two currencies via USD.
+export function convertCurrency(amount, fromCode, toCode, currencies) {
+  if (fromCode === toCode) return Number(amount) || 0;
+  return fromUsd(toUsd(amount, fromCode, currencies), toCode, currencies);
+}
+
+// Return a new balances object with `amount` added to `code`.
+export function withCredit(balances, code, amount) {
+  const next = { ...(balances || {}) };
+  next[code] = Number(next[code] || 0) + Number(amount);
+  return next;
+}
+
+// Return a new balances object with `amount` subtracted from `code` (floored at 0).
+export function withDebit(balances, code, amount) {
+  const next = { ...(balances || {}) };
+  next[code] = Math.max(0, Number(next[code] || 0) - Number(amount));
+  return next;
+}
+
+// Hook: current user's multi-currency wallet (read-only for users; admin writes).
 export function useWallet(userId) {
   const [wallet, setWallet] = useState(null);
+  const [currencies, setCurrencies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [reloadKey, setReloadKey] = useState(0);
   const refresh = useCallback(() => setReloadKey((k) => k + 1), []);
@@ -89,13 +143,26 @@ export function useWallet(userId) {
     let alive = true;
     if (!userId) { setLoading(false); return; }
     setLoading(true);
-    base44.entities.Wallet.filter({ user_id: userId }, { limit: 1 })
-      .then(({ items }) => { if (alive) { setWallet(items[0] || null); setLoading(false); } })
-      .catch(() => { if (alive) setLoading(false); });
+    Promise.all([
+      base44.entities.Wallet.filter({ user_id: userId }, { limit: 1 }),
+      base44.entities.Currency.filter({}, { limit: 100 }),
+    ]).then(([w, c]) => {
+      if (!alive) return;
+      setWallet(w.items[0] || null);
+      setCurrencies(c.items);
+      setLoading(false);
+    }).catch(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
   }, [userId, reloadKey]);
 
-  return { wallet, balance: wallet?.balance || 0, loading, refresh };
+  const balances = getBalances(wallet);
+  const getBalance = (code) => Number(balances[code] || 0);
+  const totalUsd = Object.entries(balances).reduce(
+    (sum, [code, amt]) => sum + toUsd(Number(amt) || 0, code, currencies),
+    0
+  );
+
+  return { wallet, balances, getBalance, totalUsd, loading, refresh };
 }
 
 // Hook: support links (whatsapp direct / group / phone)

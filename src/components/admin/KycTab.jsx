@@ -21,7 +21,7 @@ export default function KycTab() {
 
   const load = () => {
     setLoading(true);
-    base44.functions.invoke('listUsersForAdmin', {})
+    base44.functions.invoke('listUsersForAdmin', { filter: { kyc_status: { $in: ['pending', 'rejected'] } } })
       .then((res) => setUsers(res.data?.items || []))
       .catch(() => setUsers([]))
       .finally(() => setLoading(false));
@@ -46,7 +46,7 @@ export default function KycTab() {
       await base44.entities.User.update(u.id, { kyc_status: "approved", kyc_rejection_reason: "" });
       // ensure a wallet exists
       const { items } = await base44.entities.Wallet.filter({ user_id: u.id }, { limit: 1 });
-      if (items.length === 0) await base44.entities.Wallet.create({ user_id: u.id, balance: 0 });
+      if (items.length === 0) await base44.entities.Wallet.create({ user_id: u.id, balances: {} });
       setReviewing(null);
       load();
       refresh();

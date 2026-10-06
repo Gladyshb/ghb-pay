@@ -1,4 +1,5 @@
 import { base44 } from "@/api/base44Client";
+import { getBalances, withCredit } from "@/lib/ghb";
 
 // Generate and persist a unique referral code for the current user if missing.
 export async function ensureReferralCode(user) {
@@ -61,11 +62,10 @@ export async function processReferralReward(transfer) {
     );
     if (wallets.length > 0) {
       const w = wallets[0];
-      await base44.entities.Wallet.update(w.id, {
-        balance: (w.balance || 0) + reward,
-      });
+      const balances = withCredit(getBalances(w), "USD", reward);
+      await base44.entities.Wallet.update(w.id, { balances });
     } else {
-      await base44.entities.Wallet.create({ user_id: referrerId, balance: reward });
+      await base44.entities.Wallet.create({ user_id: referrerId, balances: { USD: reward } });
     }
 
     await base44.entities.Referral.update(referral.id, {

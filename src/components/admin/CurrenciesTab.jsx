@@ -57,6 +57,15 @@ export default function CurrenciesTab() {
   const toggleActive = async (c) => { await base44.entities.Currency.update(c.id, { active: !c.active }); load(); };
   const toggleManual = async (c) => { await base44.entities.Currency.update(c.id, { manual_override: !c.manual_override }); load(); };
 
+  // Edit the reference rate inline; auto-enables manual override so auto-sync won't overwrite it.
+  const updateReference = async (c, refVal) => {
+    const ref = Math.max(0, Number(refVal) || 0);
+    if (ref === Number(c.binance_rate || 0)) return;
+    const { buy, sell } = computeRates(ref, c.fee_percent ?? 5, c.spread_fixed ?? 0);
+    await base44.entities.Currency.update(c.id, { binance_rate: ref, manual_override: true, buy_rate: buy, sell_rate: sell });
+    load();
+  };
+
   const sync = async () => {
     setSyncing(true);
     try {
@@ -168,7 +177,14 @@ export default function CurrenciesTab() {
               {/* Spread / Fee editor */}
               {!isBase && (
                 <div className="flex items-center gap-2 flex-wrap">
-                  <Label className="text-[11px] text-muted-foreground whitespace-nowrap">Spread fixe</Label>
+                  <Label className="text-[11px] text-muted-foreground whitespace-nowrap">Réf. (par USD)</Label>
+                  <Input
+                    type="number" min="0" step="0.0001" defaultValue={Number(c.binance_rate || 0)}
+                    onBlur={(e) => updateReference(c, e.target.value)}
+                    className="h-8 bg-white/5 border-white/10 text-sm w-24"
+                    placeholder="0"
+                  />
+                  <Label className="text-[11px] text-muted-foreground whitespace-nowrap ml-1">Spread fixe</Label>
                   <Input
                     type="number" min="0" step="1" defaultValue={spread}
                     onBlur={(e) => updateSpread(c, fee, e.target.value)}

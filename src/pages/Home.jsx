@@ -11,7 +11,7 @@ import { ArrowDownToLine, ArrowUpFromLine, MessageSquare, Wallet, TrendingUp, Sh
 
 export default function Home() {
   const { user } = useCurrentUser();
-  const { balance } = useWallet(user?.id);
+  const { totalUsd, balances } = useWallet(user?.id);
   const [deposits, setDeposits] = useState([]);
   const [transfers, setTransfers] = useState([]);
   const [rates, setRates] = useState([]);
@@ -53,10 +53,19 @@ export default function Home() {
           </div>
           <div className="mt-3 flex items-end gap-2">
             <span className="text-4xl sm:text-5xl font-extrabold ghb-gold-text tracking-tight">
-              ${balance.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              ${totalUsd.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </span>
-            <span className="text-muted-foreground mb-1.5 text-sm">USD</span>
+            <span className="text-muted-foreground mb-1.5 text-sm">USD (équivalent)</span>
           </div>
+          {Object.keys(balances).length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {Object.entries(balances).filter(([, v]) => Number(v) > 0).map(([code, v]) => (
+                <span key={code} className="px-2.5 py-1 rounded-full bg-white/5 border border-white/10 text-xs text-foreground">
+                  {formatMoney(Number(v), code)}
+                </span>
+              ))}
+            </div>
+          )}
           <div className="mt-6 grid grid-cols-2 gap-3">
             <Link to="/deposit" className="group flex items-center justify-between px-4 py-3.5 rounded-2xl ghb-emerald-bg text-white font-semibold shadow-lg shadow-emerald-900/30">
               <span className="flex items-center gap-2"><ArrowDownToLine className="w-5 h-5" /> Déposer</span>

@@ -18,7 +18,7 @@ const NAV = [
 
 export default function AppShell() {
   const { user, loading } = useCurrentUser();
-  const { balance } = useWallet(user?.id);
+  const { totalUsd } = useWallet(user?.id);
   const { logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
@@ -74,7 +74,7 @@ export default function AppShell() {
               <div className="hidden sm:flex items-center gap-2 px-3 py-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10">
                 <span className="text-xs text-muted-foreground">Solde</span>
                 <span className="text-sm font-bold ghb-gold-text">
-                  ${balance.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  ${totalUsd.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </span>
               </div>
             )}

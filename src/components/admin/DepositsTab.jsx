@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { base44 } from "@/api/base44Client";
-import { formatMoney, formatDate, DEPOSIT_STATUS, signFile } from "@/lib/ghb";
+import { formatMoney, formatDate, DEPOSIT_STATUS, signFile, getBalances, withCredit } from "@/lib/ghb";
 import StatusBadge from "@/components/ghb/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,13 +29,14 @@ export default function DepositsTab() {
     if (d.receipt_uri) { try { setReceiptUrl(await signFile(d.receipt_uri)); } catch {} }
   };
 
-  const creditWallet = async (userId, amount) => {
+  const creditWallet = async (userId, currency, amount) => {
     const { items } = await base44.entities.Wallet.filter({ user_id: userId }, { limit: 1 });
     if (items.length > 0) {
       const w = items[0];
-      await base44.entities.Wallet.update(w.id, { balance: (w.balance || 0) + amount });
+      const balances = withCredit(getBalances(w), currency, amount);
+      await base44.entities.Wallet.update(w.id, { balances });
     } else {
-      await base44.entities.Wallet.create({ user_id: userId, balance: amount });
+      await base44.entities.Wallet.create({ user_id: userId, balances: { [currency]: amount } });
     }
   };
 
@@ -43,7 +44,7 @@ export default function DepositsTab() {
     setBusy(true);
     try {
       await base44.entities.DepositRequest.update(d.id, { status: "approved", credited_amount: d.amount, admin_notes: "Crédité" });
-      await creditWallet(d.user_id, d.amount);
+      await creditWallet(d.user_id, d.currency, d.amount);
       setViewing(null); load();
     } catch (e) { alert(e.message); } finally { setBusy(false); }
   };
