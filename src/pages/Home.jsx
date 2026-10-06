@@ -155,7 +155,7 @@ export default function Home() {
         </Link>
       </div>
 
-      <div className="sm:hidden">
+      <div className="max-w-md mx-auto sm:mx-0">
         <SupportButtons variant="stack" />
       </div>
     </div>
