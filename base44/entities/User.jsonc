@@ -39,6 +39,10 @@
       "type": "string",
       "description": "Private storage URI of the uploaded identity document"
     },
+    "face_uri": {
+      "type": "string",
+      "description": "Private storage URI of the uploaded selfie (face photo) for KYC"
+    },
     "kyc_status": {
       "type": "string",
       "enum": [

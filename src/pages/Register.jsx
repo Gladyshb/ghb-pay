@@ -5,10 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { UserPlus, Mail, Lock, Loader2, ShieldCheck, UploadCloud, FileCheck2, Ticket } from "lucide-react";
+import { UserPlus, Mail, Lock, Loader2, ShieldCheck, UploadCloud, FileCheck2, Ticket, Eye, EyeOff } from "lucide-react";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import AuthLayout from "@/components/AuthLayout";
-import GoogleIcon from "@/components/GoogleIcon";
 import { toast } from "@/components/ui/use-toast";
 import { safeReturnTo } from "@/lib/authReturnTo";
 import { uploadPrivate } from "@/lib/ghb";
@@ -28,6 +27,10 @@ export default function Register() {
   const [docType, setDocType] = useState("national_id");
   const [docFile, setDocFile] = useState(null);
   const [docName, setDocName] = useState("");
+  const [faceFile, setFaceFile] = useState(null);
+  const [faceName, setFaceName] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [showOtp, setShowOtp] = useState(false);
@@ -39,12 +42,19 @@ export default function Register() {
     setDocName(file.name);
   };
 
+  const handleFace = (file) => {
+    if (!file) return;
+    setFaceFile(file);
+    setFaceName(file.name);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
     if (password !== confirmPassword) { setError("Les mots de passe ne correspondent pas."); return; }
     if (!legalName || !phone || !country) { setError("Veuillez remplir votre nom, téléphone et pays."); return; }
     if (!docFile) { setError("Veuillez téléverser votre pièce d'identité."); return; }
+    if (!faceFile) { setError("Veuillez téléverser une photo de votre visage (selfie)."); return; }
     setLoading(true);
     try {
       await base44.auth.register({ email, password });
@@ -67,6 +77,7 @@ export default function Register() {
       // Upload KYC document + save profile
       try {
         const file_uri = await uploadPrivate(docFile);
+        const face_uri = await uploadPrivate(faceFile);
         await base44.auth.updateMe({
           legal_name: legalName,
           username: username || legalName,
@@ -74,6 +85,7 @@ export default function Register() {
           country,
           id_document_type: docType,
           id_document_uri: file_uri,
+          face_uri,
           kyc_status: "pending",
         });
       } catch (kycErr) {
@@ -101,10 +113,6 @@ export default function Register() {
     } catch (err) {
       setError(err.message || "Échec de l'envoi");
     }
-  };
-
-  const handleGoogle = () => {
-    base44.auth.loginWithProvider("google", safeReturnTo());
   };
 
   if (showOtp) {
@@ -140,14 +148,6 @@ export default function Register() {
         </>
       }
     >
-      <Button variant="outline" className="w-full h-12 text-sm font-medium mb-6 border-white/10 bg-white/5" onClick={handleGoogle}>
-        <GoogleIcon className="w-5 h-5 mr-2" /> Continuer avec Google
-      </Button>
-      <div className="relative mb-6">
-        <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-border" /></div>
-        <div className="relative flex justify-center text-xs uppercase"><span className="bg-card px-3 text-muted-foreground">ou</span></div>
-      </div>
-
       {error && <div className="mb-4 p-3 rounded-lg bg-destructive/10 text-destructive text-sm">{error}</div>}
 
       <form onSubmit={handleSubmit} className="space-y-4">
@@ -184,14 +184,20 @@ export default function Register() {
             <Label htmlFor="password">Mot de passe</Label>
             <div className="relative">
               <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input id="password" type="password" autoComplete="new-password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} className="pl-10 h-11 bg-white/5 border-white/10" required />
+              <Input id="password" type={showPassword ? "text" : "password"} autoComplete="new-password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} className="pl-10 h-11 bg-white/5 border-white/10 pr-9" required />
+              <button type="button" onClick={() => setShowPassword((s) => !s)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" tabIndex={-1} aria-label={showPassword ? "Masquer" : "Afficher"}>
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
             </div>
           </div>
           <div className="space-y-2">
             <Label htmlFor="confirm">Confirmer</Label>
             <div className="relative">
               <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input id="confirm" type="password" autoComplete="new-password" placeholder="•••••••" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="pl-10 h-11 bg-white/5 border-white/10" required />
+              <Input id="confirm" type={showConfirm ? "text" : "password"} autoComplete="new-password" placeholder="•••••••" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="pl-10 h-11 bg-white/5 border-white/10 pr-9" required />
+              <button type="button" onClick={() => setShowConfirm((s) => !s)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" tabIndex={-1} aria-label={showConfirm ? "Masquer" : "Afficher"}>
+                {showConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
             </div>
           </div>
         </div>
@@ -221,6 +227,22 @@ export default function Register() {
               </>
             )}
             <input type="file" accept="image/*,application/pdf" className="hidden" onChange={(e) => handleFile(e.target.files?.[0])} />
+          </label>
+        </div>
+
+        <div className="space-y-2">
+          <Label>Photo du visage (selfie)</Label>
+          <label className="w-full flex flex-col items-center justify-center gap-2 px-4 py-5 rounded-xl border-2 border-dashed border-white/15 bg-white/[0.02] hover:border-[#D4AF37]/50 cursor-pointer transition text-center">
+            {faceFile ? (
+              <div className="flex items-center gap-2 text-emerald-400"><FileCheck2 className="w-5 h-5" /><span className="text-sm text-foreground truncate max-w-[200px]">{faceName}</span></div>
+            ) : (
+              <>
+                <UploadCloud className="w-6 h-6 text-muted-foreground" />
+                <span className="text-sm text-foreground">Cliquez pour téléverser votre selfie</span>
+                <span className="text-xs text-muted-foreground">JPG ou PNG — visage dégagé</span>
+              </>
+            )}
+            <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFace(e.target.files?.[0])} />
           </label>
         </div>
 

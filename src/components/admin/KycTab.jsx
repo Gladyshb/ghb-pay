@@ -14,6 +14,7 @@ export default function KycTab() {
   const [loading, setLoading] = useState(true);
   const [reviewing, setReviewing] = useState(null);
   const [docUrl, setDocUrl] = useState("");
+  const [faceUrl, setFaceUrl] = useState("");
   const [rejecting, setRejecting] = useState(null);
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
@@ -30,8 +31,12 @@ export default function KycTab() {
   const viewDoc = async (u) => {
     setReviewing(u);
     setDocUrl("");
+    setFaceUrl("");
     if (u.id_document_uri) {
       try { setDocUrl(await signFile(u.id_document_uri)); } catch {}
+    }
+    if (u.face_uri) {
+      try { setFaceUrl(await signFile(u.face_uri)); } catch {}
     }
   };
 
@@ -105,6 +110,12 @@ export default function KycTab() {
                     </a>
                   )
                 ) : <div className="text-muted-foreground">Aucun document</div>}
+              </div>
+              <div>
+                <Label>Photo du visage (selfie)</Label>
+                {faceUrl ? (
+                  <img src={faceUrl} alt="selfie" className="mt-2 w-full max-w-[200px] rounded-xl border border-white/10" />
+                ) : <div className="text-muted-foreground">Aucun selfie</div>}
               </div>
             </div>
           )}

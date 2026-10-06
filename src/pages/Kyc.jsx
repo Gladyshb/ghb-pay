@@ -20,6 +20,7 @@ export default function Kyc() {
     country: user?.country || "",
     id_document_type: user?.id_document_type || "national_id",
     id_document_uri: user?.id_document_uri || "",
+    face_uri: user?.face_uri || "",
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -28,8 +29,8 @@ export default function Kyc() {
 
   const submit = async () => {
     setError("");
-    if (!form.legal_name || !form.phone || !form.country || !form.id_document_uri) {
-      setError("Veuillez remplir tous les champs et téléverser votre pièce d'identité.");
+    if (!form.legal_name || !form.phone || !form.country || !form.id_document_uri || !form.face_uri) {
+      setError("Veuillez remplir tous les champs, téléverser votre pièce d'identité et votre selfie.");
       return;
     }
     setSaving(true);
@@ -40,6 +41,7 @@ export default function Kyc() {
         country: form.country,
         id_document_type: form.id_document_type,
         id_document_uri: form.id_document_uri,
+        face_uri: form.face_uri,
         kyc_status: "pending",
         kyc_rejection_reason: "",
       });
@@ -136,6 +138,13 @@ export default function Kyc() {
             label="Photo / scan de la pièce d'identité"
             accept="image/*,application/pdf"
             hint="JPG, PNG ou PDF — lisible"
+          />
+          <FileUpload
+            value={form.face_uri}
+            onChange={(uri) => setForm({ ...form, face_uri: uri })}
+            label="Photo du visage (selfie)"
+            accept="image/*"
+            hint="JPG ou PNG — visage dégagé, bien éclairé"
           />
           {error && <div className="text-sm text-red-400">{error}</div>}
           <Button onClick={submit} disabled={saving} className="w-full h-12 ghb-gold-bg text-black font-semibold hover:opacity-90">
