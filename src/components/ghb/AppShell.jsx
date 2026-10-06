@@ -93,7 +93,7 @@ export default function AppShell() {
       </header>
 
       {/* Main */}
-      <main className="flex-1 max-w-6xl w-full mx-auto px-4 pt-5 pb-28 sm:pb-10 overflow-y-auto">
+      <main className="flex-1 max-w-6xl w-full mx-auto px-4 pt-5 pb-28 sm:pb-10">
         {gated && isKycRoute ? (
           <Outlet />
         ) : (
