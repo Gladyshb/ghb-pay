@@ -1,13 +1,25 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.52';
-import { secrets } from "base44:runtime";
 
 // Map app currency codes to Binance P2P fiat codes (only non-standard ones need an entry).
 const FIAT_MAP = { KSH: "KES" };
 
 // Fetch the median USDT P2P price for a fiat on a given side (SELL = ask, BUY = bid).
-// Routes through the Cloudflare Worker proxy (BINANCE_PROXY_URL) to bypass Binance 403 blocks.
-async function p2pPrice(fiat, tradeType) {
-  const proxyBase = (secrets.get("BINANCE_PROXY_URL") || "").trim().replace(/\/$/, "");
+// Routes through the Cloudflare Worker proxy to bypass Binance 403 blocks.
+// Proxy URL resolved from AppConfig (admin-managed secure field).
+let resolvedProxy = null;
+async function getProxyUrl(base44) {
+  if (resolvedProxy !== null) return resolvedProxy;
+  let url = "";
+  try {
+    const { items } = await base44.asServiceRole.entities.AppConfig.filter({}, { limit: 1 });
+    url = (items[0]?.binance_proxy_url || "").trim();
+  } catch {}
+  resolvedProxy = url.replace(/\/$/, "");
+  return resolvedProxy;
+}
+
+async function p2pPrice(fiat, tradeType, base44) {
+  const proxyBase = await getProxyUrl(base44);
   try {
     if (proxyBase) {
       const url = `${proxyBase}/?fiat=${encodeURIComponent(fiat)}&tradeType=${encodeURIComponent(tradeType)}&asset=USDT`;
@@ -103,7 +115,7 @@ export default async function(req) {
     // Probe Binance P2P reachability once; if blocked (Cloudflare 403), use the fallback batch.
     let useBinance = false;
     if (autoFiats.length) {
-      const probe = await p2pPrice(FIAT_MAP[autoFiats[0].code] || autoFiats[0].code, "SELL");
+      const probe = await p2pPrice(FIAT_MAP[autoFiats[0].code] || autoFiats[0].code, "SELL", base44);
       useBinance = !!probe;
     }
     let erRates = null;
@@ -131,8 +143,8 @@ export default async function(req) {
         source = "manual"; // admin-controlled reference (e.g. BIF = 6000)
       } else if (useBinance) {
         const fiat = FIAT_MAP[code] || code;
-        const ask = await p2pPrice(fiat, "SELL");
-        const bid = await p2pPrice(fiat, "BUY");
+        const ask = await p2pPrice(fiat, "SELL", base44);
+        const bid = await p2pPrice(fiat, "BUY", base44);
         if (ask && bid) ref = (ask + bid) / 2;
         else if (ask) ref = ask;
         else if (bid) ref = bid;

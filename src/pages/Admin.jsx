@@ -12,7 +12,8 @@ import AnnouncementsTab from "@/components/admin/AnnouncementsTab";
 import TickerTab from "@/components/admin/TickerTab";
 import AboutTab from "@/components/admin/AboutTab";
 import ReferralsTab from "@/components/admin/ReferralsTab";
-import { ShieldCheck, ArrowDownToLine, ArrowUpFromLine, MapPin, Coins, LifeBuoy, Inbox, Megaphone, Activity, Info, Gift } from "lucide-react";
+import SettingsTab from "@/components/admin/SettingsTab";
+import { ShieldCheck, ArrowDownToLine, ArrowUpFromLine, MapPin, Coins, LifeBuoy, Inbox, Megaphone, Activity, Info, Gift, Settings } from "lucide-react";
 
 export default function Admin() {
   const [tab, setTab] = useState("kyc");
@@ -46,6 +47,7 @@ export default function Admin() {
           <Tab v="ticker" icon={Activity} label="Bandeau" />
           <Tab v="about" icon={Info} label="À propos" />
           <Tab v="referrals" icon={Gift} label="Parrainage" />
+          <Tab v="settings" icon={Settings} label="Paramètres" />
         </TabsList>
 
         <TabsContent value="kyc" className="mt-4"><KycTab /></TabsContent>
@@ -59,6 +61,7 @@ export default function Admin() {
         <TabsContent value="ticker" className="mt-4"><TickerTab /></TabsContent>
         <TabsContent value="about" className="mt-4"><AboutTab /></TabsContent>
         <TabsContent value="referrals" className="mt-4"><ReferralsTab /></TabsContent>
+        <TabsContent value="settings" className="mt-4"><SettingsTab /></TabsContent>
       </Tabs>
     </div>
   );
