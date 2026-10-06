@@ -5,17 +5,14 @@ const FIAT_MAP = { KSH: "KES" };
 
 // Fetch the median USDT P2P price for a fiat on a given side (SELL = ask, BUY = bid).
 // Routes through the Cloudflare Worker proxy to bypass Binance 403 blocks.
-// Proxy URL resolved from AppConfig (admin-managed secure field).
-let resolvedProxy = null;
+// Proxy URL resolved from AppConfig (admin-managed secure field), read fresh each sync.
 async function getProxyUrl(base44) {
-  if (resolvedProxy !== null) return resolvedProxy;
   let url = "";
   try {
     const { items } = await base44.asServiceRole.entities.AppConfig.filter({}, { limit: 1 });
     url = (items[0]?.binance_proxy_url || "").trim();
   } catch {}
-  resolvedProxy = url.replace(/\/$/, "");
-  return resolvedProxy;
+  return url.replace(/\/$/, "");
 }
 
 async function p2pPrice(fiat, tradeType, base44) {
