@@ -1,11 +1,25 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.52';
+import { secrets } from "base44:runtime";
 
 // Map app currency codes to Binance P2P fiat codes (only non-standard ones need an entry).
 const FIAT_MAP = { KSH: "KES" };
 
 // Fetch the median USDT P2P price for a fiat on a given side (SELL = ask, BUY = bid).
+// Routes through the Cloudflare Worker proxy (BINANCE_PROXY_URL) to bypass Binance 403 blocks.
 async function p2pPrice(fiat, tradeType) {
+  const proxyBase = (secrets.get("BINANCE_PROXY_URL") || "").trim().replace(/\/$/, "");
   try {
+    if (proxyBase) {
+      const url = `${proxyBase}/?fiat=${encodeURIComponent(fiat)}&tradeType=${encodeURIComponent(tradeType)}&asset=USDT`;
+      const res = await fetch(url, { method: "GET" });
+      if (res.ok) {
+        const json = await res.json();
+        const price = parseFloat(json?.price);
+        if (!isNaN(price) && price > 0) return price;
+      }
+      return null;
+    }
+    // Direct fallback (likely 403 from Binance when no proxy configured).
     const res = await fetch("https://p2p.binance.com/bapi/c2c/v2/friendly/c2c/adv/search", {
       method: "POST",
       headers: {
