@@ -1,12 +1,15 @@
-import { createClient } from '@base44/sdk';
-import { appParams } from '@/lib/app-params';
+// Fichier Base44 désactivé pour basculer sur Supabase
+export const base44 = {
+  auth: {
+    loginViaEmailPassword: async () => { throw new Error("Base44 désactivé"); },
+    register: async () => { throw new Error("Base44 désactivé"); },
+    verifyOtp: async () => {},
+    resendOtp: async () => {},
+    setToken: () => {},
+    updateMe: async () => {},
+  },
+  functions: {
+    invoke: async () => {},
+  }
+};
 
-const { appId, token, functionsVersion, appBaseUrl } = appParams;
-
-export const base44 = createClient({
-  appId,
-  token,
-  functionsVersion,
-  serverUrl: '',
-  appBaseUrl
-});
