@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
-import { base44 } from "@/api/base44Client";
+import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,7 +10,6 @@ import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp
 import AuthLayout from "@/components/AuthLayout";
 import { toast } from "@/components/ui/use-toast";
 import { safeReturnTo } from "@/lib/authReturnTo";
-import { uploadPrivate } from "@/lib/ghb";
 
 const COUNTRIES = ["Burundi", "RDC", "Kenya", "Rwanda", "Tanzanie", "Ouganda", "Zambie", "Côte d'Ivoire", "Sénégal", "Maroc", "Algérie", "Émirats Arabes Unis", "Autre"];
 
@@ -55,10 +54,64 @@ export default function Register() {
     if (!legalName || !phone || !country) { setError("Veuillez remplir votre nom, téléphone et pays."); return; }
     if (!docFile) { setError("Veuillez téléverser votre pièce d'identité."); return; }
     if (!faceFile) { setError("Veuillez téléverser une photo de votre visage (selfie)."); return; }
+    
     setLoading(true);
     try {
-      await base44.auth.register({ email, password });
-      setShowOtp(true);
+      // 1. Inscription avec Supabase Auth
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email,
+        password,
+      });
+
+      if (authError) throw authError;
+      const user = authData.user;
+
+      if (user) {
+        // 2. Téléversement des fichiers KYC dans le stockage Supabase (bucket 'documents' ou 'private')
+        let docUrl = "";
+        let faceUrl = "";
+
+        try {
+          const docExt = docFile.name.split('.').pop();
+          const docPath = `${user.id}/id_doc_${Date.now()}.${docExt}`;
+          const { error: docUploadErr } = await supabase.storage.from("documents").upload(docPath, docFile);
+          if (!docUploadErr) {
+            const { data: pubDoc } = supabase.storage.from("documents").getPublicUrl(docPath);
+            docUrl = pubDoc?.publicUrl || docPath;
+          }
+
+          const faceExt = faceFile.name.split('.').pop();
+          const facePath = `${user.id}/face_${Date.now()}.${faceExt}`;
+          const { error: faceUploadErr } = await supabase.storage.from("documents").upload(facePath, faceFile);
+          if (!faceUploadErr) {
+            const { data: pubFace } = supabase.storage.from("documents").getPublicUrl(facePath);
+            faceUrl = pubFace?.publicUrl || facePath;
+          }
+        } catch (uploadErr) {
+          console.error("Erreur upload KYC:", uploadErr);
+        }
+
+        // 3. Enregistrement des informations utilisateur dans la table 'profiles'
+        await supabase.from("profiles").upsert({
+          id: user.id,
+          legal_name: legalName,
+          username: username || legalName,
+          phone,
+          country,
+          id_document_type: docType,
+          id_document_uri: docUrl,
+          face_uri: faceUrl,
+          kyc_status: "pending",
+          promo_code: promoCode || null,
+        });
+      }
+
+      // Si Supabase demande une confirmation par OTP/Email
+      if (authData?.session) {
+        window.location.href = safeReturnTo();
+      } else {
+        setShowOtp(true);
+      }
     } catch (err) {
       setError(err.message || "Échec de l'inscription");
     } finally {
@@ -70,33 +123,12 @@ export default function Register() {
     setError("");
     setLoading(true);
     try {
-      const result = await base44.auth.verifyOtp({ email, otpCode });
-      if (result?.access_token) {
-        base44.auth.setToken(result.access_token);
-      }
-      // Upload KYC document + save profile
-      try {
-        const file_uri = await uploadPrivate(docFile);
-        const face_uri = await uploadPrivate(faceFile);
-        await base44.auth.updateMe({
-          legal_name: legalName,
-          username: username || legalName,
-          phone,
-          country,
-          id_document_type: docType,
-          id_document_uri: file_uri,
-          face_uri,
-          kyc_status: "pending",
-        });
-      } catch (kycErr) {
-        // Account is created; user can complete KYC later from the app
-        console.error("KYC upload failed:", kycErr);
-      }
-      // Apply referral if a promo / sponsorship code was provided
-      const code = (promoCode || refCode || "").trim().toUpperCase();
-      if (code) {
-        try { await base44.functions.invoke("applyReferral", { code }); } catch {}
-      }
+      const { data, error: verifyError } = await supabase.auth.verifyOtp({
+        email,
+        token: otpCode,
+        type: 'signup'
+      });
+      if (verifyError) throw verifyError;
       window.location.href = safeReturnTo();
     } catch (err) {
       setError(err.message || "Code de vérification invalide");
@@ -108,7 +140,11 @@ export default function Register() {
   const handleResend = async () => {
     setError("");
     try {
-      await base44.auth.resendOtp(email);
+      const { error: resendError } = await supabase.auth.resend({
+        type: 'signup',
+        email,
+      });
+      if (resendError) throw resendError;
       toast({ title: "Code envoyé", description: "Vérifiez votre email." });
     } catch (err) {
       setError(err.message || "Échec de l'envoi");
