@@ -4,11 +4,11 @@ import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { UserPlus, Mail, Lock, Loader2, Eye, EyeOff } from "lucide-react";
+import { LogIn, Mail, Lock, Loader2, Eye, EyeOff } from "lucide-react";
 import AuthLayout from "@/components/AuthLayout";
 import { safeReturnTo } from "@/lib/authReturnTo";
 
-export default function Register() {
+export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -17,12 +17,12 @@ export default function Register() {
 
   const returnTo = safeReturnTo();
 
-  const handleRegister = async (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
     setError("");
     setLoading(true);
     try {
-      const { data, error: authError } = await supabase.auth.signUp({
+      const { data, error: authError } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
@@ -31,7 +31,7 @@ export default function Register() {
 
       window.location.href = returnTo;
     } catch (err) {
-      setError(err.message || "Failed to create account");
+      setError(err.message || "Échec de la connexion. Vérifiez vos identifiants.");
     } finally {
       setLoading(false);
     }
@@ -39,17 +39,17 @@ export default function Register() {
 
   return (
     <AuthLayout
-      icon={UserPlus}
-      title="Create an account"
-      subtitle="Sign up to get started"
+      icon={LogIn}
+      title="Connexion à GHB Pay"
+      subtitle="Entrez vos identifiants pour continuer"
       footer={
         <>
-          Already have an account?{" "}
+          Pas encore de compte ?{" "}
           <Link
-            to={"/login" + (returnTo !== "/" ? "?returnTo=" + encodeURIComponent(returnTo) : "")}
+            to={"/register" + (returnTo !== "/" ? "?returnTo=" + encodeURIComponent(returnTo) : "")}
             className="text-primary font-medium hover:underline"
           >
-            Log in
+            Créer un compte
           </Link>
         </>
       }
@@ -60,7 +60,7 @@ export default function Register() {
         </div>
       )}
 
-      <form onSubmit={handleRegister} className="space-y-4">
+      <form onSubmit={handleLogin} className="space-y-4">
         <div className="space-y-2">
           <Label htmlFor="email">Email</Label>
           <div className="relative">
@@ -70,26 +70,34 @@ export default function Register() {
               type="email"
               autoComplete="email"
               autoFocus
-              placeholder="you@example.com"
+              placeholder="vous@exemple.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="pl-10 h-12"
+              className="pl-10 h-12 bg-white/5 border-white/10"
               required
             />
           </div>
         </div>
         <div className="space-y-2">
-          <Label htmlFor="password">Password</Label>
+          <div className="flex items-center justify-between">
+            <Label htmlFor="password">Mot de passe</Label>
+            <Link
+              to="/forgot-password"
+              className="text-xs text-muted-foreground hover:text-primary transition"
+            >
+              Mot de passe oublié ?
+            </Link>
+          </div>
           <div className="relative">
             <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" aria-hidden="true" />
             <Input
               id="password"
               type={showPassword ? "text" : "password"}
-              autoComplete="new-password"
+              autoComplete="current-password"
               placeholder="••••••••"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="pl-10 h-12 pr-10"
+              className="pl-10 h-12 pr-10 bg-white/5 border-white/10"
               required
             />
             <button
@@ -103,14 +111,14 @@ export default function Register() {
             </button>
           </div>
         </div>
-        <Button type="submit" className="w-full h-12 font-medium" disabled={loading}>
+        <Button type="submit" className="w-full h-12 font-semibold ghb-gold-bg text-black hover:opacity-90" disabled={loading}>
           {loading ? (
             <>
               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              Creating account...
+              Connexion en cours...
             </>
           ) : (
-            "Sign up"
+            "Se connecter"
           )}
         </Button>
       </form>
