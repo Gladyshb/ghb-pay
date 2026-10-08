@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
-import { supabase } from "@/lib/supabase";
+import { supabase } from "../lib/supabase";
 
 import { Button } from "@/composants/ui/button";
 import { Input } from "@/composants/ui/input";
@@ -11,6 +11,7 @@ import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/composants/ui/input-otp
 import AuthLayout from "@/composants/AuthLayout";
 import { toast } from "@/composants/ui/use-toast";
 import { safeReturnTo } from "@/lib/authReturnTo";
+
 
 
 const COUNTRIES = ["Burundi", "RDC", "Kenya", "Rwanda", "Tanzanie"];
