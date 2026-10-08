@@ -10,9 +10,6 @@ import { UserPlus, Mail, Lock, Loader2, ShieldCheck, UploadCloud, FileCheck2, Ti
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/composants/ui/input-otp";
 import AuthLayout from "@/composants/AuthLayout";
 import { toast } from "@/composants/ui/use-toast";
-import { safeReturnTo } from "@/lib/authReturnTo";
-
-
 
 const COUNTRIES = ["Burundi", "RDC", "Kenya", "Rwanda", "Tanzanie"];
 
@@ -53,7 +50,7 @@ export default function Register() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
-    
+
     if (password !== confirmPassword) {
       setError("Les mots de passe ne correspondent pas.");
       return;
@@ -70,9 +67,9 @@ export default function Register() {
             username: username,
             phone: phone,
             country: country,
-            ref_code: refCode || promoCode
-          }
-        }
+            ref_code: refCode || promoCode,
+          },
+        },
       });
 
       if (signUpError) throw signUpError;
@@ -83,7 +80,7 @@ export default function Register() {
       });
       setShowOtp(true);
     } catch (err) {
-      setError(err.message || une erreur est survenue);
+      setError(err?.message || "une erreur est survenue");
     } finally {
       setLoading(false);
     }
@@ -94,32 +91,32 @@ export default function Register() {
       <div className="w-full max-w-md p-6 bg-white rounded-lg shadow-md">
         <h2 className="text-2xl font-bold text-center mb-6">Créer un compte GHB-PAY</h2>
         {error && <div className="mb-4 p-3 text-sm text-red-500 bg-red-50 rounded">{error}</div>}
-        
+
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <Label htmlFor="email">Email</Label>
-            <Input 
-              id="email" 
-              type="email" 
-              value={email} 
-              onChange={(e) => setEmail(e.target.value)} 
-              required 
+            <Input
+              id="email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
             />
           </div>
 
           <div>
             <Label htmlFor="password">Mot de passe</Label>
             <div className="relative">
-              <Input 
-                id="password" 
-                type={showPassword ? "text" : "password"} 
-                value={password} 
-                onChange={(e) => setPassword(e.target.value)} 
-                required 
+              <Input
+                id="password"
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
               />
-              <button 
-                type="button" 
-                onClick={() => setShowPassword(!showPassword)} 
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
                 className="absolute right-3 top-2.5 text-gray-500"
               >
                 {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -130,16 +127,16 @@ export default function Register() {
           <div>
             <Label htmlFor="confirmPassword">Confirmer le mot de passe</Label>
             <div className="relative">
-              <Input 
-                id="confirmPassword" 
-                type={showConfirm ? "text" : "password"} 
-                value={confirmPassword} 
-                onChange={(e) => setConfirmPassword(e.target.value)} 
-                required 
+              <Input
+                id="confirmPassword"
+                type={showConfirm ? "text" : "password"}
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                required
               />
-              <button 
-                type="button" 
-                onClick={() => setShowConfirm(!showConfirm)} 
+              <button
+                type="button"
+                onClick={() => setShowConfirm(!showConfirm)}
                 className="absolute right-3 top-2.5 text-gray-500"
               >
                 {showConfirm ? <EyeOff size={18} /> : <Eye size={18} />}
