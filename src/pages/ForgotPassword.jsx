@@ -1,49 +1,71 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
-import { base44 } from "@/api/base44Client";
+import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Mail, ArrowLeft, Loader2 } from "lucide-react";
+import { Mail, ArrowLeft, Loader2, CheckCircle } from "lucide-react";
 import AuthLayout from "@/components/AuthLayout";
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
+  const [error, setError] = useState("");
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setError("");
     setLoading(true);
+    
     try {
-      await base44.auth.resetPasswordRequest(email);
-    } catch {
-      // Always show success regardless
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+      
+      if (resetError) throw resetError;
+      setSent(true);
+    } catch (err) {
+      setError(err?.message || "Erreur lors de l'envoi du lien de réinitialisation.");
     } finally {
       setLoading(false);
-      setSent(true);
     }
   };
 
   return (
     <AuthLayout
       icon={Mail}
-      title="Reset password"
-      subtitle="We'll send you a link to reset it"
+      title="Réinitialiser le mot de passe"
+      subtitle="Nous vous enverrons un lien pour le réinitialiser"
       footer={
         <Link to="/login" className="text-primary font-medium hover:underline">
-          <ArrowLeft className="w-3 h-3 inline mr-1" />Back to log in
+          <ArrowLeft className="w-3 h-3 inline mr-1" />
+          Retour à la connexion
         </Link>
       }
     >
+      {error && (
+        <div className="mb-4 p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
+          {error}
+        </div>
+      )}
+
       {sent ? (
-        <p className="text-sm text-foreground text-center">
-          If an account exists with that email, you'll receive a password reset link shortly.
-        </p>
+        <div className="text-center space-y-4">
+          <div className="flex justify-center">
+            <CheckCircle className="w-12 h-12 text-green-600" />
+          </div>
+          <p className="text-sm text-foreground">
+            Si un compte existe avec cet email, vous recevrez un lien de réinitialisation du mot de passe dans quelques minutes.
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Veuillez vérifier votre dossier spam si vous ne voyez pas l'email.
+          </p>
+        </div>
       ) : (
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="email">Email address</Label>
+            <Label htmlFor="email">Adresse email</Label>
             <div className="relative">
               <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" aria-hidden="true" />
               <Input
@@ -51,7 +73,7 @@ export default function ForgotPassword() {
                 type="email"
                 autoComplete="email"
                 autoFocus
-                placeholder="you@example.com"
+                placeholder="vous@exemple.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="pl-10 h-12"
@@ -63,10 +85,10 @@ export default function ForgotPassword() {
             {loading ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Sending...
+                Envoi en cours...
               </>
             ) : (
-              "Send reset link"
+              "Envoyer le lien"
             )}
           </Button>
         </form>
