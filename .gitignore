@@ -30,3 +30,4 @@ dist-ssr
 # Base44 specific
 base44/.app.jsonc
 base44/.app.json
+/supabase/.temp/

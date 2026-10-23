@@ -1,0 +1,2 @@
+[functions.sync-binance-rates]
+verify_jwt = false
