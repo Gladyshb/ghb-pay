@@ -20,7 +20,7 @@ Set the same values in the Vercel project environment. Never expose a Supabase s
 
 ## Supabase configuration
 
-Enable email/password and Google providers in Supabase Auth. Set the site URL and redirect allow-list to include the local Vite URL and the deployed Vercel URL. The migration creates the `profiles` table and its Auth trigger, application tables, RLS policies, private file bucket, and the RPC functions used for referral and wallet operations.
+Enable email/password and Google providers in Supabase Auth. Set the site URL and redirect allow-list to include the local Vite URL and the deployed Vercel URL. The migrations create the `profiles` table and its Auth trigger, application tables, RLS policies, private file bucket, and the RPC functions used for referral and wallet operations. The incremental private-file migration repairs a missing bucket and reapplies its owner/admin storage policies.
 
 The initial administrator must be promoted directly in the Supabase SQL editor by setting `profiles.role` to `admin` for the intended user ID. Do not allow users to set their own role.
 
