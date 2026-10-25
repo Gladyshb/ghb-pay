@@ -22,8 +22,9 @@ export default function Kyc() {
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [submitted, setSubmitted] = useState(false);
 
-  const kyc = user?.kyc_status || "not_submitted";
+  const kyc = submitted ? "pending" : user?.kyc_status || "not_submitted";
 
   useEffect(() => {
     if (!user) return;
@@ -44,16 +45,28 @@ export default function Kyc() {
     }
     setSaving(true);
     try {
-      const { error: profileError } = await supabase.from("profiles").update({
-        legal_name: form.legal_name,
-        phone: form.phone,
-        country: form.country,
-        id_document_type: form.id_document_type,
-        id_document_uri: form.id_document_uri,
-        kyc_status: "pending",
-        kyc_rejection_reason: "",
-      }).eq("id", user.id);
+      const { data: updatedProfile, error: profileError } = await supabase
+        .from("profiles")
+        .update({
+          legal_name: form.legal_name,
+          phone: form.phone,
+          country: form.country,
+          id_document_type: form.id_document_type,
+          id_document_uri: form.id_document_uri,
+          kyc_status: "pending",
+          kyc_rejection_reason: "",
+        })
+        .eq("id", user.id)
+        .select("id, kyc_status")
+        .maybeSingle();
       if (profileError) throw profileError;
+      if (!updatedProfile) {
+        throw new Error("Votre profil n’a pas été trouvé. Votre demande n’a pas été enregistrée. Contactez l’assistance.");
+      }
+      if (updatedProfile.kyc_status !== "pending") {
+        throw new Error("La demande n’a pas été enregistrée. Veuillez réessayer ou contacter l’assistance.");
+      }
+      setSubmitted(true);
       refresh();
     } catch (e) {
       setError(e.message || "Échec de la soumission");
