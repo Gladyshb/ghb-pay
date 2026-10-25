@@ -2,7 +2,12 @@ import * as React from "react"
 
 import { cn } from "@/lib/utils"
 
-const Input = React.forwardRef(({ className, type, ...props }, ref) => {
+/** @type {React.ForwardRefExoticComponent<
+ *   React.ComponentPropsWithoutRef<"input"> & React.RefAttributes<HTMLInputElement>
+ * >} */
+const Input = React.forwardRef(
+  /** @type {React.ForwardRefRenderFunction<HTMLInputElement, React.ComponentPropsWithoutRef<"input">>} */
+  ({ className, type, ...props }, ref) => {
   return (
     (<input
       type={type}
@@ -13,7 +18,8 @@ const Input = React.forwardRef(({ className, type, ...props }, ref) => {
       ref={ref}
       {...props} />)
   );
-})
+  }
+)
 Input.displayName = "Input"
 
 export { Input }

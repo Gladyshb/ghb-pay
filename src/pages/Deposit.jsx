@@ -1,14 +1,14 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { base44 } from "@/api/base44Client";
-import { useCurrentUser, formatMoney, DEPOSIT_STATUS } from "@/lib/ghb";
+import { insertRow, selectRows } from "@/lib/supabaseData";
+import { supabase } from "@/lib/supabase";
+import { useCurrentUser, DEPOSIT_STATUS } from "@/lib/ghb";
 import StatusBadge from "@/components/ghb/StatusBadge";
 import FileUpload from "@/components/ghb/FileUpload";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowDownToLine, Copy, Check, Loader2, MessageSquare, ChevronLeft, Smartphone, Building2, Bitcoin, Globe, ShieldCheck, Ticket } from "lucide-react";
+import { Copy, Check, Loader2, MessageSquare, ChevronLeft, Smartphone, Building2, Bitcoin, Globe, ShieldCheck, Ticket } from "lucide-react";
 
 const TYPE_META = {
   mobile_money: { label: "Mobile Money", icon: Smartphone },
@@ -34,8 +34,8 @@ export default function Deposit() {
   const [copied, setCopied] = useState("");
 
   useEffect(() => {
-    base44.entities.DepositAddress.filter({ active: true }, { sort: "type", limit: 100 })
-      .then(({ items }) => setAddresses(items))
+    selectRows("deposit_addresses", { active: true }, { sort: "type", limit: 100 })
+      .then(setAddresses)
       .finally(() => setLoading(false));
   }, []);
 
@@ -44,10 +44,18 @@ export default function Deposit() {
     return acc;
   }, {});
 
-  const copy = (text, key) => {
-    navigator.clipState?.writeText(text);
-    setCopied(key);
-    setTimeout(() => setCopied(""), 1500);
+  const copy = async (text, key) => {
+    try {
+      if (!navigator.clipboard?.writeText) {
+        throw new Error("La copie dans le presse-papiers n'est pas disponible.");
+      }
+      await navigator.clipboard.writeText(text);
+      setCopied(key);
+      setTimeout(() => setCopied(""), 1500);
+    } catch (copyError) {
+      console.error("Failed to copy deposit details:", copyError);
+      setError(copyError.message || "Impossible de copier les coordonnées.");
+    }
   };
 
   const submit = async () => {
@@ -56,7 +64,7 @@ export default function Deposit() {
     if (!receipt) { setError("Téléversez la capture d'écran du reçu."); return; }
     setSubmitting(true);
     try {
-      const created = await base44.entities.DepositRequest.create({
+      const created = await insertRow("deposit_requests", {
         user_id: user.id,
         user_name: user.legal_name || user.email,
         user_email: user.email,
@@ -71,7 +79,12 @@ export default function Deposit() {
       });
       // Attach a referrer if the user entered a sponsor code and isn't already referred
       const code = promoCode.trim().toUpperCase();
-      if (code) { try { await base44.functions.invoke("applyReferral", { code }); } catch {} }
+      if (code) {
+        const { data: referralResult, error: referralError } = await supabase.rpc("apply_referral_code", { p_code: code });
+        if (referralError || !referralResult?.ok) {
+          console.error("Referral code could not be applied:", referralError || referralResult?.reason);
+        }
+      }
       setCreatedId(created.id);
       setStep(3);
     } catch (e) {
@@ -246,7 +259,7 @@ function Stepper({ step }) {
   );
 }
 
-function DetailRow({ label, value, k, copied, onCopy, mono }) {
+function DetailRow({ label, value, k, copied, onCopy, mono = false }) {
   if (!value) return null;
   return (
     <div className="flex items-center justify-between gap-3">

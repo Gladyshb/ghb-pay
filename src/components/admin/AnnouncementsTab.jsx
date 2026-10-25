@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { base44 } from "@/api/base44Client";
+import { deleteRow, insertRow, selectRows, updateRow } from "@/lib/supabaseData";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -18,8 +18,8 @@ export default function AnnouncementsTab() {
 
   const load = () => {
     setLoading(true);
-    base44.entities.Announcement.filter({}, { sort: "order", limit: 100 })
-      .then(({ items }) => setItems(items))
+    selectRows("announcements", {}, { sort: "order", limit: 100 })
+      .then(setItems)
       .finally(() => setLoading(false));
   };
   useEffect(load, []);
@@ -30,20 +30,20 @@ export default function AnnouncementsTab() {
   const save = async () => {
     setBusy(true);
     try {
-      if (editing === "new") await base44.entities.Announcement.create(form);
-      else await base44.entities.Announcement.update(editing, form);
+      if (editing === "new") await insertRow("announcements", form);
+      else await updateRow("announcements", editing, form);
       setEditing(null); load();
     } catch (e) { alert(e.message); } finally { setBusy(false); }
   };
 
   const toggle = async (a) => {
-    await base44.entities.Announcement.update(a.id, { active: !a.active });
+    await updateRow("announcements", a.id, { active: !a.active });
     load();
   };
 
   const remove = async (a) => {
     if (!confirm("Supprimer cette annonce ?")) return;
-    await base44.entities.Announcement.delete(a.id);
+    await deleteRow("announcements", a.id);
     load();
   };
 

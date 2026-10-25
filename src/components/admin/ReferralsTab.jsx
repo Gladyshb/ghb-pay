@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { base44 } from "@/api/base44Client";
+import { insertRow, selectRows, updateRow } from "@/lib/supabaseData";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -24,11 +24,11 @@ export default function ReferralsTab() {
   const load = () => {
     setLoading(true);
     Promise.all([
-      base44.entities.Referral.filter({}, { sort: "-created_date", limit: 100 }),
-      base44.entities.ReferralSetting.filter({ active: true }, { limit: 1 }),
+      selectRows("referrals", {}, { sort: "-created_at", limit: 100 }),
+      selectRows("referral_settings", { active: true }, { limit: 1 }),
     ]).then(([r, s]) => {
-      setItems(r.items);
-      if (s.items[0]) { setSetting(s.items[0]); setSettingId(s.items[0].id); }
+      setItems(r);
+      if (s[0]) { setSetting(s[0]); setSettingId(s[0].id); }
       else setSetting({ commission_type: "percent", commission_value: 5, active: true });
     }).finally(() => setLoading(false));
   };
@@ -42,14 +42,14 @@ export default function ReferralsTab() {
         commission_value: Number(setting.commission_value),
         active: setting.active,
       };
-      if (settingId) await base44.entities.ReferralSetting.update(settingId, payload);
-      else { const c = await base44.entities.ReferralSetting.create(payload); setSettingId(c.id); }
+      if (settingId) await updateRow("referral_settings", settingId, payload);
+      else { const c = await insertRow("referral_settings", payload); setSettingId(c.id); }
     } catch (e) { alert(e.message); } finally { setBusy(false); }
   };
 
   const markVoid = async (r) => {
     if (!confirm("Annuler ce parrainage (aucune récompense) ?")) return;
-    await base44.entities.Referral.update(r.id, { status: "void" });
+    await updateRow("referrals", r.id, { status: "void" });
     load();
   };
 
@@ -165,7 +165,7 @@ export default function ReferralsTab() {
   );
 }
 
-function Stat({ icon: Icon, label, value, tone }) {
+function Stat({ icon: Icon, label, value, tone = "" }) {
   return (
     <div className="ghb-card rounded-2xl p-3 text-center">
       <Icon className={`w-4 h-4 mx-auto mb-1 ${tone === "emerald" ? "text-emerald-400" : "text-[#D4AF37]"}`} />

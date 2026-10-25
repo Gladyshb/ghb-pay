@@ -1,17 +1,17 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { base44 } from "@/api/base44Client";
+import { selectRows } from "@/lib/supabaseData";
 import { useCurrentUser, useWallet, formatMoney, formatDate, KYC_META, DEPOSIT_STATUS, TRANSFER_STATUS } from "@/lib/ghb";
 import StatusBadge from "@/components/ghb/StatusBadge";
 import SupportButtons from "@/components/ghb/SupportButtons";
 import CurrencyCalculator from "@/components/ghb/CurrencyCalculator";
 import TickerBanner from "@/components/ghb/TickerBanner";
 import AnnouncementCarousel from "@/components/ghb/AnnouncementCarousel";
-import { ArrowDownToLine, ArrowUpFromLine, MessageSquare, Wallet, TrendingUp, ShieldCheck, Loader2, ChevronRight, Gift, Info } from "lucide-react";
+import { ArrowDownToLine, ArrowUpFromLine, Wallet, TrendingUp, ShieldCheck, Loader2, ChevronRight, Gift, Info } from "lucide-react";
 
 export default function Home() {
   const { user } = useCurrentUser();
-  const { totalUsd, balances } = useWallet(user?.id);
+  const { balance } = useWallet(user?.id);
   const [deposits, setDeposits] = useState([]);
   const [transfers, setTransfers] = useState([]);
   const [rates, setRates] = useState([]);
@@ -20,14 +20,14 @@ export default function Home() {
   useEffect(() => {
     let alive = true;
     Promise.all([
-      base44.entities.DepositRequest.filter({}, { sort: "-created_date", limit: 3 }),
-      base44.entities.TransferRequest.filter({}, { sort: "-created_date", limit: 3 }),
-      base44.entities.Currency.filter({ active: true }, { sort: "code", limit: 50 }),
+      selectRows("deposit_requests", {}, { sort: "-created_at", limit: 3 }),
+      selectRows("transfer_requests", {}, { sort: "-created_at", limit: 3 }),
+      selectRows("currencies", { active: true }, { sort: "code", limit: 50 }),
     ]).then(([d, t, c]) => {
       if (!alive) return;
-      setDeposits(d.items);
-      setTransfers(t.items);
-      setRates(c.items);
+      setDeposits(d);
+      setTransfers(t);
+      setRates(c);
       setLoading(false);
     }).catch(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
@@ -53,19 +53,10 @@ export default function Home() {
           </div>
           <div className="mt-3 flex items-end gap-2">
             <span className="text-4xl sm:text-5xl font-extrabold ghb-gold-text tracking-tight">
-              ${totalUsd.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              ${balance.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </span>
-            <span className="text-muted-foreground mb-1.5 text-sm">USD (équivalent)</span>
+            <span className="text-muted-foreground mb-1.5 text-sm">USD</span>
           </div>
-          {Object.keys(balances).length > 0 && (
-            <div className="mt-3 flex flex-wrap gap-2">
-              {Object.entries(balances).filter(([, v]) => Number(v) > 0).map(([code, v]) => (
-                <span key={code} className="px-2.5 py-1 rounded-full bg-white/5 border border-white/10 text-xs text-foreground">
-                  {formatMoney(Number(v), code)}
-                </span>
-              ))}
-            </div>
-          )}
           <div className="mt-6 grid grid-cols-2 gap-3">
             <Link to="/deposit" className="group flex items-center justify-between px-4 py-3.5 rounded-2xl ghb-emerald-bg text-white font-semibold shadow-lg shadow-emerald-900/30">
               <span className="flex items-center gap-2"><ArrowDownToLine className="w-5 h-5" /> Déposer</span>
@@ -164,14 +155,14 @@ export default function Home() {
         </Link>
       </div>
 
-      <div className="max-w-md mx-auto sm:mx-0">
+      <div className="sm:hidden">
         <SupportButtons variant="stack" />
       </div>
     </div>
   );
 }
 
-function ActivityCard({ title, icon: Icon, items, loading, link }) {
+function ActivityCard({ title, icon: Icon, items, loading, link = "/transactions" }) {
   return (
     <div className="ghb-card rounded-2xl p-5">
       <div className="flex items-center gap-2 text-foreground font-semibold mb-3">
@@ -184,7 +175,7 @@ function ActivityCard({ title, icon: Icon, items, loading, link }) {
       ) : (
         <div className="space-y-2">
           {items.map((it) => (
-            <Link key={it.id} to={link} className="flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl bg-white/[0.02] hover:bg-white/5 transition">
+            <Link key={it.id} to={it.link || link} className="flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl bg-white/[0.02] hover:bg-white/5 transition">
               <div className="min-w-0">
                 <div className="text-sm font-medium text-foreground truncate">{it.title}</div>
                 <div className="text-xs text-muted-foreground truncate">{it.sub}</div>

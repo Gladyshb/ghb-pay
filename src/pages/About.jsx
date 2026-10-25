@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { base44 } from "@/api/base44Client";
+import { selectRows } from "@/lib/supabaseData";
 import { ChevronLeft, MapPin, Phone, Mail, Globe2, ShieldCheck, Zap, HeartHandshake, Loader2 } from "lucide-react";
 
 export default function About() {
@@ -8,8 +8,8 @@ export default function About() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    base44.entities.AboutContent.filter({ active: true }, { limit: 1 })
-      .then(({ items }) => setContent(items[0] || null))
+    selectRows("about_content", { active: true }, { limit: 1 })
+      .then((rows) => setContent(rows[0] || null))
       .finally(() => setLoading(false));
   }, []);
 

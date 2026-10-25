@@ -1,94 +1,128 @@
-import React, { createContext, useState, useContext, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { supabase } from "@/lib/supabase";
 
-const AuthContext = createContext();
+const AuthContext = createContext(null);
 
-export const AuthProvider = ({ children }) => {
+export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
   const [authError, setAuthError] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
+  const navigate = useNavigate();
+
+  const loadUser = useCallback(async (authUser) => {
+    if (!authUser) {
+      setUser(null);
+      setAuthError(null);
+      setIsLoadingAuth(false);
+      setAuthChecked(true);
+      return null;
+    }
+
+    const { data: profile, error } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", authUser.id)
+      .maybeSingle();
+    if (error) throw error;
+
+    const currentUser = {
+      ...authUser,
+      ...(authUser.user_metadata || {}),
+      ...(profile || {}),
+      id: authUser.id,
+      email: authUser.email,
+    };
+    setUser(currentUser);
+    setAuthError(null);
+    setIsLoadingAuth(false);
+    setAuthChecked(true);
+    return currentUser;
+  }, []);
+
+  const checkUserAuth = useCallback(async () => {
+    setIsLoadingAuth(true);
+    try {
+      const { data, error } = await supabase.auth.getUser();
+      if (error) throw error;
+      return await loadUser(data.user);
+    } catch (error) {
+      setUser(null);
+      setAuthError({ type: "unknown", message: error.message });
+      setIsLoadingAuth(false);
+      setAuthChecked(true);
+      return null;
+    }
+  }, [loadUser]);
 
   useEffect(() => {
-    checkUserAuth();
-    
-    // Listen for auth changes
+    let active = true;
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (session?.user) {
-        setUser(session.user);
-        setIsAuthenticated(true);
-      } else {
-        setUser(null);
-        setIsAuthenticated(false);
+      if (event === "PASSWORD_RECOVERY") {
+        sessionStorage.setItem("supabase_password_recovery", "true");
+      } else if (event === "SIGNED_OUT") {
+        sessionStorage.removeItem("supabase_password_recovery");
       }
+      if (!active) return;
+      setIsLoadingAuth(true);
+      queueMicrotask(async () => {
+        if (!active) return;
+        try {
+          await loadUser(session?.user || null);
+        } catch (error) {
+          if (!active) return;
+          setUser(null);
+          setAuthError({ type: "unknown", message: error.message });
+          setIsLoadingAuth(false);
+          setAuthChecked(true);
+        }
+      });
+    });
+
+    supabase.auth.getSession().then(async ({ data, error }) => {
+      if (!active) return;
+      if (error) throw error;
+      await loadUser(data.session?.user || null);
+    }).catch((error) => {
+      if (!active) return;
+      setAuthError({ type: "unknown", message: error.message });
+      setIsLoadingAuth(false);
       setAuthChecked(true);
     });
 
-    return () => subscription?.unsubscribe();
-  }, []);
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+    };
+  }, [loadUser]);
 
-  const checkUserAuth = async () => {
-    try {
-      setIsLoadingAuth(true);
-      setAuthError(null);
-      
-      const { data: { session }, error } = await supabase.auth.getSession();
-      
-      if (error) throw error;
-      
-      if (session?.user) {
-        setUser(session.user);
-        setIsAuthenticated(true);
-      } else {
-        setUser(null);
-        setIsAuthenticated(false);
-      }
-      
-      setAuthChecked(true);
-    } catch (error) {
-      console.error('Auth check failed:', error);
-      setAuthError(error?.message || 'Authentication check failed');
-      setIsAuthenticated(false);
-      setAuthChecked(true);
-    } finally {
-      setIsLoadingAuth(false);
-    }
-  };
+  const logout = useCallback(async (shouldRedirect = true) => {
+    const { error } = await supabase.auth.signOut();
+    if (error) throw error;
+    if (shouldRedirect) navigate("/login", { replace: true });
+  }, [navigate]);
 
-  const logout = async () => {
-    try {
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
-      
-      setUser(null);
-      setIsAuthenticated(false);
-      window.location.href = '/login';
-    } catch (error) {
-      console.error('Logout failed:', error);
-      setAuthError(error?.message || 'Logout failed');
-    }
-  };
+  const navigateToLogin = useCallback(() => navigate("/login"), [navigate]);
+  const value = useMemo(() => ({
+    user,
+    isAuthenticated: Boolean(user),
+    isLoadingAuth,
+    isLoadingPublicSettings: false,
+    authError,
+    appPublicSettings: null,
+    authChecked,
+    logout,
+    navigateToLogin,
+    checkUserAuth,
+    checkAppState: checkUserAuth,
+  }), [user, isLoadingAuth, authError, authChecked, logout, navigateToLogin, checkUserAuth]);
 
-  return (
-    <AuthContext.Provider value={{
-      user,
-      isAuthenticated,
-      isLoadingAuth,
-      authError,
-      authChecked,
-      logout,
-      checkUserAuth,
-    }}>
-      {children}
-    </AuthContext.Provider>
-  );
-};
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
 
-export const useAuth = () => {
+export function useAuth() {
   const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
+  if (!context) throw new Error("useAuth must be used within an AuthProvider");
   return context;
-};
+}

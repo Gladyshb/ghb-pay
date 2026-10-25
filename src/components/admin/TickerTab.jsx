@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { base44 } from "@/api/base44Client";
+import { deleteRow, insertRow, selectRows, updateRow, updateRows } from "@/lib/supabaseData";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -17,8 +17,8 @@ export default function TickerTab() {
 
   const load = () => {
     setLoading(true);
-    base44.entities.TickerMessage.filter({}, { sort: "order", limit: 100 })
-      .then(({ items }) => setItems(items))
+    selectRows("ticker_messages", {}, { sort: "order", limit: 100 })
+      .then(setItems)
       .finally(() => setLoading(false));
   };
   useEffect(load, []);
@@ -26,8 +26,8 @@ export default function TickerTab() {
   const save = async () => {
     setBusy(true);
     try {
-      if (editing === "new") await base44.entities.TickerMessage.create(form);
-      else await base44.entities.TickerMessage.update(editing, form);
+      if (editing === "new") await insertRow("ticker_messages", form);
+      else await updateRow("ticker_messages", editing, form);
       setEditing(null); load();
     } catch (e) { alert(e.message); } finally { setBusy(false); }
   };
@@ -36,19 +36,19 @@ export default function TickerTab() {
     setBusy(true);
     try {
       const ids = items.map((i) => i.id);
-      await base44.entities.TickerMessage.bulkUpdate(ids.map((id) => ({ id, active: on })));
+      await updateRows("ticker_messages", ids, { active: on });
       load();
     } catch (e) { alert(e.message); } finally { setBusy(false); }
   };
 
   const toggle = async (m) => {
-    await base44.entities.TickerMessage.update(m.id, { active: !m.active });
+    await updateRow("ticker_messages", m.id, { active: !m.active });
     load();
   };
 
   const remove = async (m) => {
     if (!confirm("Supprimer ce message ?")) return;
-    await base44.entities.TickerMessage.delete(m.id);
+    await deleteRow("ticker_messages", m.id);
     load();
   };
 

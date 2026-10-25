@@ -1,12 +1,11 @@
 import { useEffect, useState } from "react";
-import { base44 } from "@/api/base44Client";
-import { formatMoney, formatDate, TRANSFER_STATUS, signFile, getBalances, withDebit } from "@/lib/ghb";
-import { processReferralReward } from "@/lib/referral";
+import { supabase } from "@/lib/supabase";
+import { selectRows, updateRow } from "@/lib/supabaseData";
+import { formatMoney, formatDate, TRANSFER_STATUS, signFile } from "@/lib/ghb";
 import StatusBadge from "@/components/ghb/StatusBadge";
 import FileUpload from "@/components/ghb/FileUpload";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Loader2, Check, X, Eye, FileText } from "lucide-react";
 
@@ -22,32 +21,31 @@ export default function TransfersTab() {
 
   const load = () => {
     setLoading(true);
-    base44.entities.TransferRequest.filter({}, { sort: "-created_date", limit: 100 })
-      .then(({ items }) => setItems(items))
+    selectRows("transfer_requests", {}, { sort: "-created_at", limit: 100 })
+      .then(setItems)
       .finally(() => setLoading(false));
   };
   useEffect(load, []);
 
   const view = async (t) => {
     setViewing(t); setReceipt(""); setReceiptUrl("");
-    if (t.receipt_uri) { try { setReceiptUrl(await signFile(t.receipt_uri)); } catch {} }
-  };
-
-  const debitWallet = async (userId, currency, amount) => {
-    const { items } = await base44.entities.Wallet.filter({ user_id: userId }, { limit: 1 });
-    if (items.length > 0) {
-      const w = items[0];
-      const balances = withDebit(getBalances(w), currency, amount);
-      await base44.entities.Wallet.update(w.id, { balances });
+    if (t.receipt_uri) {
+      try {
+        setReceiptUrl(await signFile(t.receipt_uri));
+      } catch (error) {
+        alert(error.message || "Impossible d'ouvrir le reçu.");
+      }
     }
   };
 
   const complete = async () => {
     setBusy(true);
     try {
-      await base44.entities.TransferRequest.update(viewing.id, { status: "completed", receipt_uri: receipt });
-      await debitWallet(viewing.user_id, viewing.from_currency, viewing.amount);
-      await processReferralReward({ id: viewing.id, user_id: viewing.user_id, amount: viewing.amount, to_currency: viewing.to_currency });
+      const { error } = await supabase.rpc("complete_transfer", {
+        p_transfer_id: viewing.id,
+        p_receipt_uri: receipt,
+      });
+      if (error) throw error;
       setViewing(null); load();
     } catch (e) { alert(e.message); } finally { setBusy(false); }
   };
@@ -55,7 +53,7 @@ export default function TransfersTab() {
   const reject = async () => {
     setBusy(true);
     try {
-      await base44.entities.TransferRequest.update(rejecting.id, { status: "rejected", rejection_reason: reason });
+      await updateRow("transfer_requests", rejecting.id, { status: "rejected", rejection_reason: reason });
       setRejecting(null); setReason(""); load();
     } catch (e) { alert(e.message); } finally { setBusy(false); }
   };

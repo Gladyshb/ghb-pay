@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
-import { base44 } from "@/api/base44Client";
+import { selectRows } from "@/lib/supabaseData";
 
 export default function TickerBanner() {
   const [messages, setMessages] = useState([]);
 
   useEffect(() => {
-    base44.entities.TickerMessage.filter({ active: true }, { sort: "order", limit: 50 })
-      .then(({ items }) => setMessages(items))
-      .catch(() => setMessages([]));
+    selectRows("ticker_messages", { active: true }, { sort: "order", limit: 50 })
+      .then(setMessages)
+      .catch((error) => { console.error("Failed to load ticker messages:", error); setMessages([]); });
   }, []);
 
   if (messages.length === 0) return null;

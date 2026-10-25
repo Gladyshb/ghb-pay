@@ -26,9 +26,9 @@ import Referral from '@/pages/Referral';
 
 function App() {
   return (
-    <AuthProvider>
-      <QueryClientProvider client={queryClientInstance}>
-        <Router>
+    <QueryClientProvider client={queryClientInstance}>
+      <Router>
+        <AuthProvider>
           <ScrollToTop />
           <Routes>
             {/* Public auth routes */}
@@ -55,10 +55,10 @@ function App() {
 
             <Route path="*" element={<PageNotFound />} />
           </Routes>
-        </Router>
-        <Toaster />
-      </QueryClientProvider>
-    </AuthProvider>
+        </AuthProvider>
+      </Router>
+      <Toaster />
+    </QueryClientProvider>
   )
 }
 

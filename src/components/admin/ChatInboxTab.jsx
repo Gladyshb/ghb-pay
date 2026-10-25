@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
-import { base44 } from "@/api/base44Client";
+import { selectRows } from "@/lib/supabaseData";
 import { formatDate } from "@/lib/ghb";
 import ChatThread from "@/components/ghb/ChatThread";
-import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Loader2, MessageSquare, ArrowDownToLine, ArrowUpFromLine, LifeBuoy, ChevronRight } from "lucide-react";
 
@@ -17,19 +16,20 @@ export default function ChatInboxTab() {
   useEffect(() => {
     let alive = true;
     Promise.all([
-      base44.entities.DepositRequest.filter({}, { sort: "-created_date", limit: 100 }),
-      base44.entities.TransferRequest.filter({}, { sort: "-created_date", limit: 100 }),
-      base44.entities.ChatMessage.filter({ thread_type: "support" }, { sort: "-created_date", limit: 100 }),
+      selectRows("deposit_requests", {}, { sort: "-created_at", limit: 100 }),
+      selectRows("transfer_requests", {}, { sort: "-created_at", limit: 100 }),
+      selectRows("chat_messages", { thread_type: "support" }, { sort: "-created_at", limit: 100 }),
     ]).then(async ([d, t, s]) => {
       if (!alive) return;
-      setDeposits(d.items);
-      setTransfers(t.items);
-      setSupportMsgs(s.items);
+      setDeposits(d);
+      setTransfers(t);
+      setSupportMsgs(s);
       // fetch user names for support threads
-      const ids = [...new Set(s.items.map((m) => m.user_id))];
+      const ids = [...new Set(s.map((m) => m.user_id))];
       const uMap = {};
-      for (const id of ids) {
-        try { const u = await base44.entities.User.get(id); uMap[id] = u; } catch {}
+      if (ids.length > 0) {
+        const profiles = await selectRows("profiles", { id: ids });
+        for (const profile of profiles) uMap[profile.id] = profile;
       }
       if (alive) { setUsers(uMap); setLoading(false); }
     }).catch(() => { if (alive) setLoading(false); });

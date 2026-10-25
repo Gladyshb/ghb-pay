@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
-import { base44 } from "@/api/base44Client";
+import { useSearchParams } from "react-router-dom";
+import { selectRows } from "@/lib/supabaseData";
 import { useCurrentUser, formatDate, DEPOSIT_STATUS, TRANSFER_STATUS } from "@/lib/ghb";
 import StatusBadge from "@/components/ghb/StatusBadge";
 import ChatThread from "@/components/ghb/ChatThread";
@@ -20,12 +20,12 @@ export default function Chat() {
   useEffect(() => {
     let alive = true;
     Promise.all([
-      base44.entities.DepositRequest.filter({}, { sort: "-created_date", limit: 50 }),
-      base44.entities.TransferRequest.filter({}, { sort: "-created_date", limit: 50 }),
+      selectRows("deposit_requests", {}, { sort: "-created_at", limit: 50 }),
+      selectRows("transfer_requests", {}, { sort: "-created_at", limit: 50 }),
     ]).then(([d, t]) => {
       if (!alive) return;
-      setDeposits(d.items);
-      setTransfers(t.items);
+      setDeposits(d);
+      setTransfers(t);
       setLoading(false);
     }).catch(() => { if (alive) setLoading(false); });
     return () => { alive = false; };

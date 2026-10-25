@@ -1,26 +1,26 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { base44 } from "@/api/base44Client";
-import { useCurrentUser, useWallet, formatMoney, convertCurrency } from "@/lib/ghb";
+import { insertRow, selectRows } from "@/lib/supabaseData";
+import { supabase } from "@/lib/supabase";
+import { useCurrentUser, useWallet, formatMoney } from "@/lib/ghb";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowUpFromLine, Loader2, Check, MessageSquare, ChevronLeft, AlertTriangle, Ticket } from "lucide-react";
+import { ArrowUpFromLine, Loader2, Check, MessageSquare, AlertTriangle, Ticket } from "lucide-react";
 
 const PAYOUT_METHODS = ["Mobile Money", "Virement bancaire", "Crypto / USDT", "Zelle", "Cash pickup", "Autre"];
 const COUNTRIES = ["Burundi", "RDC", "Kenya", "Rwanda", "Tanzanie", "Ouganda", "Zambie", "Côte d'Ivoire", "Sénégal", "Maroc", "Algérie", "Émirats Arabes Unis", "Autre"];
 
 export default function Transfer() {
   const { user } = useCurrentUser();
-  const { balances, getBalance } = useWallet(user?.id);
+  const { balance } = useWallet(user?.id);
   const [currencies, setCurrencies] = useState([]);
   const [loadingCur, setLoadingCur] = useState(true);
-  const availableCodes = Object.keys(balances).filter((c) => Number(balances[c]) > 0);
   const [form, setForm] = useState({
     amount: "",
-    from_currency: "",
+    from_currency: "USD",
     to_currency: "USDT",
     beneficiary_name: "",
     beneficiary_country: "Burundi",
@@ -33,35 +33,25 @@ export default function Transfer() {
   const [promoCode, setPromoCode] = useState("");
 
   useEffect(() => {
-    base44.entities.Currency.filter({ active: true }, { sort: "code", limit: 100 })
-      .then(({ items }) => setCurrencies(items))
+    selectRows("currencies", { active: true }, { sort: "code", limit: 100 })
+      .then(setCurrencies)
       .finally(() => setLoadingCur(false));
   }, []);
 
-  // Default the source currency to the first available balance.
-  useEffect(() => {
-    if (!form.from_currency && availableCodes.length > 0) {
-      setForm((f) => ({ ...f, from_currency: availableCodes[0] }));
-    }
-  }, [availableCodes, form.from_currency]);
-
+  const toCur = currencies.find((c) => c.code === form.to_currency);
+  const rate = toCur?.sell_rate || 0;
   const amountNum = Number(form.amount) || 0;
-  const converted = form.from_currency && form.to_currency
-    ? convertCurrency(amountNum, form.from_currency, form.to_currency, currencies)
-    : 0;
-  const effectiveRate = amountNum > 0 ? converted / amountNum : 0;
-  const sourceBalance = getBalance(form.from_currency);
-  const insufficient = amountNum > sourceBalance;
+  const converted = rate ? amountNum * rate : 0;
+  const insufficient = amountNum > balance;
 
   const submit = async () => {
     setError("");
-    if (!form.from_currency) { setError("Choisissez la devise source."); return; }
     if (!form.amount || amountNum <= 0) { setError("Indiquez un montant valide."); return; }
-    if (insufficient) { setError("Solde insuffisant dans la devise source."); return; }
+    if (insufficient) { setError("Solde insuffisant pour ce transfert."); return; }
     if (!form.beneficiary_name || !form.payout_details) { setError("Renseignez le bénéficiaire et les coordonnées de paiement."); return; }
     setSubmitting(true);
     try {
-      await base44.entities.TransferRequest.create({
+      await insertRow("transfer_requests", {
         user_id: user.id,
         user_name: user.legal_name || user.email,
         user_email: user.email,
@@ -69,7 +59,7 @@ export default function Transfer() {
         from_currency: form.from_currency,
         to_currency: form.to_currency,
         converted_amount: converted,
-        rate: effectiveRate,
+        rate,
         beneficiary_name: form.beneficiary_name,
         beneficiary_country: form.beneficiary_country,
         payout_method: form.payout_method,
@@ -77,8 +67,14 @@ export default function Transfer() {
         promo_code: promoCode.trim().toUpperCase() || undefined,
         status: "pending",
       });
+      // Attach a referrer if the user entered a sponsor code and isn't already referred
       const code = promoCode.trim().toUpperCase();
-      if (code) { try { await base44.functions.invoke("applyReferral", { code }); } catch {} }
+      if (code) {
+        const { data: referralResult, error: referralError } = await supabase.rpc("apply_referral_code", { p_code: code });
+        if (referralError || !referralResult?.ok) {
+          console.error("Referral code could not be applied:", referralError || referralResult?.reason);
+        }
+      }
       setDone(true);
     } catch (e) {
       setError(e.message || "Échec de la demande");
@@ -115,45 +111,24 @@ export default function Transfer() {
     <div className="max-w-2xl mx-auto space-y-5">
       <div>
         <h1 className="text-xl font-bold text-foreground flex items-center gap-2"><ArrowUpFromLine className="w-5 h-5 text-[#D4AF37]" /> Nouveau transfert</h1>
-        <p className="text-sm text-muted-foreground mt-1">Choisissez la devise source et la devise reçue par le bénéficiaire.</p>
+        <p className="text-sm text-muted-foreground mt-1">Envoyez des fonds depuis votre solde vers un bénéficiaire.</p>
       </div>
 
-      {/* Available balances — pick the source */}
-      <div className="ghb-card rounded-2xl p-4">
-        <div className="text-xs text-muted-foreground mb-2">Soldes disponibles</div>
-        {loadingCur ? (
-          <div className="flex justify-center py-2"><Loader2 className="w-4 h-4 text-[#D4AF37] animate-spin" /></div>
-        ) : availableCodes.length === 0 ? (
-          <div className="text-sm text-muted-foreground">Aucun solde. Effectuez d'abord un dépôt.</div>
-        ) : (
-          <div className="flex flex-wrap gap-2">
-            {availableCodes.map((code) => (
-              <button key={code} type="button" onClick={() => setForm((f) => ({ ...f, from_currency: code }))}
-                className={`px-3 py-1.5 rounded-full text-sm font-medium border transition ${form.from_currency === code ? "ghb-gold-bg text-black border-transparent" : "bg-white/5 text-foreground border-white/10"}`}>
-                {formatMoney(Number(balances[code]), code)}
-              </button>
-            ))}
-          </div>
-        )}
+      <div className="ghb-card rounded-2xl p-4 flex items-center justify-between">
+        <span className="text-sm text-muted-foreground">Solde disponible</span>
+        <span className="text-lg font-bold ghb-gold-text">${balance.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
       </div>
 
       <div className="ghb-card rounded-2xl p-5 space-y-4">
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-2">
-            <Label>Depuis (devise source)</Label>
-            <Select value={form.from_currency} onValueChange={(v) => setForm({ ...form, from_currency: v })}>
-              <SelectTrigger className="bg-white/5 border-white/10 h-11"><SelectValue placeholder="Choisir" /></SelectTrigger>
-              <SelectContent>
-                {availableCodes.map((code) => (
-                  <SelectItem key={code} value={code}>{code} — {formatMoney(Number(balances[code]), code)}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
             <Label>Montant à envoyer</Label>
             <Input type="number" min="0" step="0.01" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })}
               placeholder="0.00" className="bg-white/5 border-white/10 h-11" />
+          </div>
+          <div className="space-y-2">
+            <Label>Depuis</Label>
+            <Input value={form.from_currency} disabled className="bg-white/5 border-white/10 h-11" />
           </div>
         </div>
 
@@ -168,20 +143,20 @@ export default function Transfer() {
             </Select>
           </div>
           <div className="space-y-2">
-            <Label>Taux appliqué</Label>
-            <Input value={effectiveRate ? `1 ${form.from_currency} = ${effectiveRate.toLocaleString("en-US", { maximumFractionDigits: 4 })} ${form.to_currency}` : "—"} disabled className="bg-white/5 border-white/10 h-11" />
+            <Label>Taux (vente)</Label>
+            <Input value={rate ? `1 USD = ${rate} ${form.to_currency}` : "—"} disabled className="bg-white/5 border-white/10 h-11" />
           </div>
         </div>
 
-        {amountNum > 0 && form.from_currency && (
+        {amountNum > 0 && (
           <div className="flex items-center justify-between px-3.5 py-3 rounded-xl bg-[#D4AF37]/10 border border-[#D4AF37]/30">
             <span className="text-sm text-muted-foreground">Bénéficiaire reçoit</span>
             <span className="text-base font-bold text-[#E8C65A]">{formatMoney(converted, form.to_currency)}</span>
           </div>
         )}
 
-        {insufficient && form.from_currency && (
-          <div className="flex items-center gap-2 text-sm text-red-400"><AlertTriangle className="w-4 h-4" /> Solde insuffisant en {form.from_currency}.</div>
+        {insufficient && (
+          <div className="flex items-center gap-2 text-sm text-red-400"><AlertTriangle className="w-4 h-4" /> Solde insuffisant.</div>
         )}
 
         <div className="grid grid-cols-2 gap-3">
@@ -225,7 +200,7 @@ export default function Transfer() {
         </div>
 
         {error && <div className="text-sm text-red-400">{error}</div>}
-        <Button onClick={submit} disabled={submitting || insufficient || !form.from_currency} className="w-full h-12 ghb-gold-bg text-black font-semibold hover:opacity-90">
+        <Button onClick={submit} disabled={submitting || insufficient} className="w-full h-12 ghb-gold-bg text-black font-semibold hover:opacity-90">
           {submitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
           Demander le transfert
         </Button>

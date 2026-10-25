@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { base44 } from "@/api/base44Client";
+import { selectRows } from "@/lib/supabaseData";
 import { useCurrentUser, formatMoney, formatDate } from "@/lib/ghb";
 import StatusBadge from "@/components/ghb/StatusBadge";
 import { Button } from "@/components/ui/button";
@@ -17,18 +17,6 @@ const STATUS_LABEL = {
   rejected: "Rejeté",
 };
 
-// Pull all records via cursor (capped) for a complete statement
-async function fetchAll(entity, cap = 1000) {
-  const items = [];
-  let cursor;
-  do {
-    const page = await entity.filter({}, { sort: "-created_date", limit: 100, cursor });
-    items.push(...page.items);
-    cursor = page.next_cursor;
-  } while (cursor && items.length < cap);
-  return items;
-}
-
 function buildRows(deposits, transfers) {
   const d = (deposits || []).map((x) => ({
     id: x.id, date: x.created_date, type: "deposit",
@@ -42,7 +30,7 @@ function buildRows(deposits, transfers) {
     amount: x.amount, currency: x.from_currency, status: x.status,
     threadType: "transfer", threadId: x.id,
   }));
-  return [...d, ...t].sort((a, b) => new Date(b.date) - new Date(a.date));
+  return [...d, ...t].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 }
 
 const startOfDay = (s) => (s ? new Date(s + "T00:00:00") : null);
@@ -60,7 +48,10 @@ export default function History() {
   useEffect(() => {
     let alive = true;
     setLoading(true);
-    Promise.all([fetchAll(base44.entities.DepositRequest), fetchAll(base44.entities.TransferRequest)])
+    Promise.all([
+      selectRows("deposit_requests", {}, { sort: "-created_at", limit: 1000 }),
+      selectRows("transfer_requests", {}, { sort: "-created_at", limit: 1000 }),
+    ])
       .then(([d, t]) => { if (alive) { setRows(buildRows(d, t)); setLoading(false); } })
       .catch(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
@@ -142,7 +133,7 @@ export default function History() {
     });
 
     // Footer
-    const pages = doc.internal.getNumberOfPages();
+    const pages = doc.getNumberOfPages();
     for (let p = 1; p <= pages; p++) {
       doc.setPage(p);
       doc.setFontSize(8); doc.setTextColor(120, 120, 120);

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { base44 } from "@/api/base44Client";
+import { deleteRow, insertRow, selectRows, updateRow } from "@/lib/supabaseData";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,8 +24,8 @@ export default function SupportTab() {
 
   const load = () => {
     setLoading(true);
-    base44.entities.SupportLink.filter({}, { sort: "type", limit: 50 })
-      .then(({ items }) => setItems(items))
+    selectRows("support_links", {}, { sort: "type", limit: 50 })
+      .then(setItems)
       .finally(() => setLoading(false));
   };
   useEffect(load, []);
@@ -33,15 +33,15 @@ export default function SupportTab() {
   const save = async () => {
     setSaving(true);
     try {
-      if (editing === "new") await base44.entities.SupportLink.create(form);
-      else await base44.entities.SupportLink.update(editing, form);
+      if (editing === "new") await insertRow("support_links", form);
+      else await updateRow("support_links", editing, form);
       setEditing(null); load();
     } catch (e) { alert(e.message); } finally { setSaving(false); }
   };
 
   const remove = async (s) => {
     if (!confirm("Supprimer ce lien ?")) return;
-    await base44.entities.SupportLink.delete(s.id); load();
+    await deleteRow("support_links", s.id); load();
   };
 
   if (loading) return <div className="flex justify-center py-10"><Loader2 className="w-6 h-6 text-[#D4AF37] animate-spin" /></div>;
@@ -54,14 +54,14 @@ export default function SupportTab() {
       </div>
       <div className="space-y-2.5">
         {items.map((s) => {
-          const meta = TYPES.find((t) => t.value === s.type) || {};
-          const Icon = meta.icon || MessageCircle;
+          const meta = TYPES.find((t) => t.value === s.type);
+          const Icon = meta?.icon || MessageCircle;
           return (
             <div key={s.id} className="ghb-card rounded-2xl p-4 flex items-center justify-between gap-3">
               <div className="flex items-center gap-3 min-w-0">
                 <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center"><Icon className="w-5 h-5 text-[#D4AF37]" /></div>
                 <div className="min-w-0">
-                  <div className="font-semibold text-foreground">{s.label || meta.label}</div>
+                  <div className="font-semibold text-foreground">{s.label || meta?.label}</div>
                   <div className="text-xs text-muted-foreground truncate">{s.url || s.phone || "—"}</div>
                 </div>
               </div>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { base44 } from "@/api/base44Client";
+import { insertRow, selectRows, updateRow } from "@/lib/supabaseData";
 import { useCurrentUser, KYC_META, signFile } from "@/lib/ghb";
 import StatusBadge from "@/components/ghb/StatusBadge";
 import { Button } from "@/components/ui/button";
@@ -14,16 +14,15 @@ export default function KycTab() {
   const [loading, setLoading] = useState(true);
   const [reviewing, setReviewing] = useState(null);
   const [docUrl, setDocUrl] = useState("");
-  const [faceUrl, setFaceUrl] = useState("");
   const [rejecting, setRejecting] = useState(null);
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
 
   const load = () => {
     setLoading(true);
-    base44.functions.invoke('listUsersForAdmin', { filter: { kyc_status: { $in: ['pending', 'rejected'] } } })
-      .then((res) => setUsers(res.data?.items || []))
-      .catch(() => setUsers([]))
+    selectRows("profiles", { kyc_status: ["pending", "rejected"] }, { sort: "-created_at", limit: 200 })
+      .then(setUsers)
+      .catch((error) => { console.error("Failed to load KYC applications:", error); setUsers([]); })
       .finally(() => setLoading(false));
   };
   useEffect(load, []);
@@ -31,22 +30,22 @@ export default function KycTab() {
   const viewDoc = async (u) => {
     setReviewing(u);
     setDocUrl("");
-    setFaceUrl("");
     if (u.id_document_uri) {
-      try { setDocUrl(await signFile(u.id_document_uri)); } catch {}
-    }
-    if (u.face_uri) {
-      try { setFaceUrl(await signFile(u.face_uri)); } catch {}
+      try {
+        setDocUrl(await signFile(u.id_document_uri));
+      } catch (error) {
+        alert(error.message || "Impossible d'ouvrir le document.");
+      }
     }
   };
 
   const approve = async (u) => {
     setBusy(true);
     try {
-      await base44.entities.User.update(u.id, { kyc_status: "approved", kyc_rejection_reason: "" });
+      await updateRow("profiles", u.id, { kyc_status: "approved", kyc_rejection_reason: "" });
       // ensure a wallet exists
-      const { items } = await base44.entities.Wallet.filter({ user_id: u.id }, { limit: 1 });
-      if (items.length === 0) await base44.entities.Wallet.create({ user_id: u.id, balances: {} });
+      const wallets = await selectRows("wallets", { user_id: u.id }, { limit: 1 });
+      if (wallets.length === 0) await insertRow("wallets", { user_id: u.id, balance: 0 });
       setReviewing(null);
       load();
       refresh();
@@ -57,7 +56,7 @@ export default function KycTab() {
     if (!reason.trim()) return;
     setBusy(true);
     try {
-      await base44.entities.User.update(rejecting.id, { kyc_status: "rejected", kyc_rejection_reason: reason });
+      await updateRow("profiles", rejecting.id, { kyc_status: "rejected", kyc_rejection_reason: reason });
       setRejecting(null); setReason(""); load(); refresh();
     } catch (e) { alert(e.message); } finally { setBusy(false); }
   };
@@ -110,12 +109,6 @@ export default function KycTab() {
                     </a>
                   )
                 ) : <div className="text-muted-foreground">Aucun document</div>}
-              </div>
-              <div>
-                <Label>Photo du visage (selfie)</Label>
-                {faceUrl ? (
-                  <img src={faceUrl} alt="selfie" className="mt-2 w-full max-w-[200px] rounded-xl border border-white/10" />
-                ) : <div className="text-muted-foreground">Aucun selfie</div>}
               </div>
             </div>
           )}

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { base44 } from "@/api/base44Client";
+import { selectRows } from "@/lib/supabaseData";
 import { Megaphone, Loader2, ChevronRight } from "lucide-react";
 
 export default function AnnouncementCarousel() {
@@ -8,9 +8,9 @@ export default function AnnouncementCarousel() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    base44.entities.Announcement.filter({ active: true }, { sort: "order", limit: 20 })
-      .then(({ items }) => setItems(items))
-      .catch(() => setItems([]))
+    selectRows("announcements", { active: true }, { sort: "order", limit: 20 })
+      .then(setItems)
+      .catch((error) => { console.error("Failed to load announcements:", error); setItems([]); })
       .finally(() => setLoading(false));
   }, []);
 

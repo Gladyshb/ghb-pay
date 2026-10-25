@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { base44 } from "@/api/base44Client";
+import { selectRows } from "@/lib/supabaseData";
+import { supabase } from "@/lib/supabase";
 import { useCurrentUser, formatMoney, formatDate } from "@/lib/ghb";
 import { ensureReferralCode } from "@/lib/referral";
 import StatusBadge from "@/components/ghb/StatusBadge";
@@ -41,30 +42,30 @@ export default function Referral() {
     let alive = true;
     (async () => {
       if (!user?.id) return;
-      const myCode = await ensureReferralCode(user);
-      if (!alive) return;
-      setCode(myCode);
-      setDraft(myCode);
-      setLink(`${window.location.origin}/register?ref=${myCode}`);
       try {
-        const [agg, list] = await Promise.all([
-          base44.entities.Referral.aggregate({
-            query: { referrer_id: user.id },
-            groupBy: "status",
-            sum: ["reward_amount"],
-          }),
-          base44.entities.Referral.filter({ referrer_id: user.id }, { sort: "-created_date", limit: 100 }),
-        ]);
+        const myCode = await ensureReferralCode(user);
+        if (!alive) return;
+        setCode(myCode);
+        setDraft(myCode);
+        setLink(`${window.location.origin}/register?ref=${myCode}`);
+        const list = await selectRows("referrals", { referrer_id: user.id }, { sort: "-created_at", limit: 100 });
         if (!alive) return;
         let invited = 0, rewarded = 0, earnings = 0;
-        for (const r of (agg.rows || [])) {
-          invited += r.count || 0;
-          if (r.status === "rewarded") { rewarded += r.count || 0; earnings += r.sum_reward_amount || 0; }
+        for (const referral of list) {
+          invited += 1;
+          if (referral.status === "rewarded") {
+            rewarded += 1;
+            earnings += Number(referral.reward_amount || 0);
+          }
         }
         setStats({ invited, rewarded, earnings });
-        setReferrals(list.items || []);
-      } catch {}
-      if (alive) setLoading(false);
+        setReferrals(list);
+      } catch (error) {
+        console.error("Failed to load referral data:", error);
+        if (alive) setCodeError(error.message || "Impossible de charger le parrainage.");
+      } finally {
+        if (alive) setLoading(false);
+      }
     })();
     return () => { alive = false; };
   }, [user?.id]);
@@ -86,8 +87,8 @@ export default function Referral() {
     if (normalized === code) { setEditing(false); return; }
     setSaving(true);
     try {
-      const res = await base44.functions.invoke("updateReferralCode", { code: normalized });
-      const data = res?.data || res;
+      const { data, error: invokeError } = await supabase.rpc("set_referral_code", { p_code: normalized });
+      if (invokeError) throw invokeError;
       if (data?.ok) {
         setCode(data.code);
         setDraft(data.code);
@@ -226,7 +227,7 @@ export default function Referral() {
   );
 }
 
-function StatCard({ icon: Icon, label, value, tone }) {
+function StatCard({ icon: Icon, label, value, tone = "" }) {
   const valColor = tone === "emerald" ? "text-emerald-400" : tone === "gold" ? "ghb-gold-text" : "text-foreground";
   return (
     <div className="ghb-card rounded-2xl p-4 text-center">

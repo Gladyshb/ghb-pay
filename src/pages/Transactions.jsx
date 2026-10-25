@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { base44 } from "@/api/base44Client";
+import { selectRows } from "@/lib/supabaseData";
 import { useCurrentUser, formatMoney, formatDate, DEPOSIT_STATUS, TRANSFER_STATUS } from "@/lib/ghb";
 import StatusBadge from "@/components/ghb/StatusBadge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowDownToLine, ArrowUpFromLine, MessageSquare, Loader2, ChevronRight } from "lucide-react";
+import { ArrowDownToLine, ArrowUpFromLine, MessageSquare, Loader2 } from "lucide-react";
 
 export default function Transactions() {
   const { user } = useCurrentUser();
@@ -15,12 +15,12 @@ export default function Transactions() {
   useEffect(() => {
     let alive = true;
     Promise.all([
-      base44.entities.DepositRequest.filter({}, { sort: "-created_date", limit: 50 }),
-      base44.entities.TransferRequest.filter({}, { sort: "-created_date", limit: 50 }),
+      selectRows("deposit_requests", {}, { sort: "-created_at", limit: 50 }),
+      selectRows("transfer_requests", {}, { sort: "-created_at", limit: 50 }),
     ]).then(([d, t]) => {
       if (!alive) return;
-      setDeposits(d.items);
-      setTransfers(t.items);
+      setDeposits(d);
+      setTransfers(t);
       setLoading(false);
     }).catch(() => { if (alive) setLoading(false); });
     return () => { alive = false; };

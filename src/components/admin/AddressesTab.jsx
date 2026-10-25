@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { base44 } from "@/api/base44Client";
+import { deleteRow, insertRow, selectRows, updateRow } from "@/lib/supabaseData";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -29,8 +29,8 @@ export default function AddressesTab() {
 
   const load = () => {
     setLoading(true);
-    base44.entities.DepositAddress.filter({}, { sort: "type", limit: 100 })
-      .then(({ items }) => setItems(items))
+    selectRows("deposit_addresses", {}, { sort: "type", limit: 100 })
+      .then(setItems)
       .finally(() => setLoading(false));
   };
   useEffect(load, []);
@@ -41,20 +41,20 @@ export default function AddressesTab() {
   const save = async () => {
     setSaving(true);
     try {
-      if (editing === "new") await base44.entities.DepositAddress.create(form);
-      else await base44.entities.DepositAddress.update(editing, form);
+      if (editing === "new") await insertRow("deposit_addresses", form);
+      else await updateRow("deposit_addresses", editing, form);
       setEditing(null); load();
     } catch (e) { alert(e.message); } finally { setSaving(false); }
   };
 
   const toggle = async (a) => {
-    await base44.entities.DepositAddress.update(a.id, { active: !a.active });
+    await updateRow("deposit_addresses", a.id, { active: !a.active });
     load();
   };
 
   const remove = async (a) => {
     if (!confirm("Supprimer cette adresse ?")) return;
-    await base44.entities.DepositAddress.delete(a.id);
+    await deleteRow("deposit_addresses", a.id);
     load();
   };
 

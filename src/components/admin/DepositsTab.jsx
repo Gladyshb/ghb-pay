@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { base44 } from "@/api/base44Client";
-import { formatMoney, formatDate, DEPOSIT_STATUS, signFile, getBalances, withCredit } from "@/lib/ghb";
+import { supabase } from "@/lib/supabase";
+import { selectRows, updateRow } from "@/lib/supabaseData";
+import { formatMoney, formatDate, DEPOSIT_STATUS, signFile } from "@/lib/ghb";
 import StatusBadge from "@/components/ghb/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,33 +19,28 @@ export default function DepositsTab() {
 
   const load = () => {
     setLoading(true);
-    base44.entities.DepositRequest.filter({}, { sort: "-created_date", limit: 100 })
-      .then(({ items }) => setItems(items))
+    selectRows("deposit_requests", {}, { sort: "-created_at", limit: 100 })
+      .then(setItems)
       .finally(() => setLoading(false));
   };
   useEffect(load, []);
 
   const view = async (d) => {
     setViewing(d); setReceiptUrl("");
-    if (d.receipt_uri) { try { setReceiptUrl(await signFile(d.receipt_uri)); } catch {} }
-  };
-
-  const creditWallet = async (userId, currency, amount) => {
-    const { items } = await base44.entities.Wallet.filter({ user_id: userId }, { limit: 1 });
-    if (items.length > 0) {
-      const w = items[0];
-      const balances = withCredit(getBalances(w), currency, amount);
-      await base44.entities.Wallet.update(w.id, { balances });
-    } else {
-      await base44.entities.Wallet.create({ user_id: userId, balances: { [currency]: amount } });
+    if (d.receipt_uri) {
+      try {
+        setReceiptUrl(await signFile(d.receipt_uri));
+      } catch (error) {
+        alert(error.message || "Impossible d'ouvrir le reçu.");
+      }
     }
   };
 
   const approve = async (d) => {
     setBusy(true);
     try {
-      await base44.entities.DepositRequest.update(d.id, { status: "approved", credited_amount: d.amount, admin_notes: "Crédité" });
-      await creditWallet(d.user_id, d.currency, d.amount);
+      const { error } = await supabase.rpc("approve_deposit", { p_deposit_id: d.id });
+      if (error) throw error;
       setViewing(null); load();
     } catch (e) { alert(e.message); } finally { setBusy(false); }
   };
@@ -52,7 +48,7 @@ export default function DepositsTab() {
   const reject = async () => {
     setBusy(true);
     try {
-      await base44.entities.DepositRequest.update(rejecting.id, { status: "rejected", rejection_reason: reason });
+      await updateRow("deposit_requests", rejecting.id, { status: "rejected", rejection_reason: reason });
       setRejecting(null); setReason(""); load();
     } catch (e) { alert(e.message); } finally { setBusy(false); }
   };

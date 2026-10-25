@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { base44 } from "@/api/base44Client";
+import { insertRow, selectRows, updateRow } from "@/lib/supabaseData";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -15,9 +15,23 @@ export default function AboutTab() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    base44.entities.AboutContent.filter({}, { limit: 1 })
-      .then(({ items }) => {
-        if (items[0]) { setForm({ ...items[0] }); setId(items[0].id); }
+    selectRows("about_content", {}, { limit: 1 })
+      .then((rows) => {
+        if (rows[0]) {
+          const row = rows[0];
+          setForm({
+            title: row.title ?? "",
+            intro: row.intro ?? "",
+            vision: row.vision ?? "",
+            services: row.services ?? "",
+            values: row.values ?? "",
+            location: row.location ?? "",
+            phone: row.phone ?? "",
+            email: row.email ?? "",
+            active: row.active ?? true,
+          });
+          setId(row.id);
+        }
       })
       .finally(() => setLoading(false));
   }, []);
@@ -25,8 +39,8 @@ export default function AboutTab() {
   const save = async () => {
     setBusy(true);
     try {
-      if (id) await base44.entities.AboutContent.update(id, form);
-      else { const c = await base44.entities.AboutContent.create(form); setId(c.id); }
+      if (id) await updateRow("about_content", id, form);
+      else { const c = await insertRow("about_content", form); setId(c.id); }
     } catch (e) { alert(e.message); } finally { setBusy(false); }
   };
 

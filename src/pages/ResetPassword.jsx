@@ -1,65 +1,100 @@
-import React, { useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import React, { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Lock, Loader2, AlertTriangle, CheckCircle } from "lucide-react";
+import { Lock, Loader2, AlertTriangle } from "lucide-react";
 import AuthLayout from "@/components/AuthLayout";
 
 export default function ResetPassword() {
-  const [searchParams] = useSearchParams();
-  
+  const [hasRecoverySession, setHasRecoverySession] = useState(false);
+  const [checkingRecovery, setCheckingRecovery] = useState(true);
+
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
-  const [showNewPassword, setShowNewPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    const params = new URLSearchParams(window.location.hash.slice(1));
+    let isRecoveryRedirect = params.get("type") === "recovery"
+      || new URLSearchParams(window.location.search).get("type") === "recovery"
+      || sessionStorage.getItem("supabase_password_recovery") === "true";
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "PASSWORD_RECOVERY") {
+        isRecoveryRedirect = true;
+        sessionStorage.setItem("supabase_password_recovery", "true");
+        supabase.auth.getSession().then(({ data }) => {
+          if (active) setHasRecoverySession(Boolean(data.session));
+        }).catch((sessionError) => {
+          if (active) setError(sessionError.message || "Invalid reset link");
+        }).finally(() => {
+          if (active) setCheckingRecovery(false);
+        });
+      }
+    });
+    supabase.auth.getSession().then(({ data, error: sessionError }) => {
+      if (sessionError) throw sessionError;
+      if (active) {
+        setHasRecoverySession(Boolean(data.session && isRecoveryRedirect));
+        setCheckingRecovery(false);
+      }
+    }).catch((sessionError) => {
+      if (active) {
+        setError(sessionError.message || "Invalid reset link");
+        setCheckingRecovery(false);
+      }
+    });
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+    };
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
-    
     if (newPassword !== confirmPassword) {
-      setError("Les mots de passe ne correspondent pas.");
+      setError("Passwords do not match");
       return;
     }
-
-    if (newPassword.length < 6) {
-      setError("Le mot de passe doit contenir au moins 6 caractères.");
-      return;
-    }
-
     setLoading(true);
     try {
-      const { error: updateError } = await supabase.auth.updateUser({
-        password: newPassword,
-      });
-
+      const { error: updateError } = await supabase.auth.updateUser({ password: newPassword });
       if (updateError) throw updateError;
-      
-      setSuccess(true);
-      setTimeout(() => {
-        window.location.href = "/login";
-      }, 2000);
+      sessionStorage.removeItem("supabase_password_recovery");
+      window.location.assign("/login");
     } catch (err) {
-      setError(err?.message || "Erreur lors de la réinitialisation du mot de passe.");
+      setError(err.message || "Failed to reset password");
     } finally {
       setLoading(false);
     }
   };
 
-  if (success) {
+  if (checkingRecovery) {
+    return (
+      <AuthLayout icon={Lock} title="New password">
+        <div className="flex justify-center py-4"><Loader2 className="w-5 h-5 animate-spin" /></div>
+      </AuthLayout>
+    );
+  }
+
+  if (!hasRecoverySession) {
     return (
       <AuthLayout
-        icon={CheckCircle}
-        title="Mot de passe réinitialisé"
-        subtitle="Votre mot de passe a été changé avec succès"
+        icon={AlertTriangle}
+        title="Invalid reset link"
+        subtitle="This password reset link is missing or invalid"
+        footer={
+          <Link to="/forgot-password" className="text-primary font-medium hover:underline">
+            Request a new link
+          </Link>
+        }
       >
         <p className="text-sm text-foreground text-center">
-          Redirection vers la connexion...
+          The link you used appears to be incomplete. Please request a new password reset email.
         </p>
       </AuthLayout>
     );
@@ -68,23 +103,22 @@ export default function ResetPassword() {
   return (
     <AuthLayout
       icon={Lock}
-      title="Nouveau mot de passe"
-      subtitle="Entrez votre nouveau mot de passe ci-dessous"
+      title="New password"
+      subtitle="Enter your new password below"
     >
       {error && (
         <div className="mb-4 p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
           {error}
         </div>
       )}
-      
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="space-y-2">
-          <Label htmlFor="password">Nouveau mot de passe</Label>
+          <Label htmlFor="password">New Password</Label>
           <div className="relative">
             <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" aria-hidden="true" />
             <Input
               id="password"
-              type={showNewPassword ? "text" : "password"}
+              type="password"
               autoComplete="new-password"
               autoFocus
               placeholder="••••••••"
@@ -93,24 +127,15 @@ export default function ResetPassword() {
               className="pl-10 h-12"
               required
             />
-            <button
-              type="button"
-              onClick={() => setShowNewPassword(!showNewPassword)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-              tabIndex={-1}
-            >
-              {showNewPassword ? "Masquer" : "Afficher"}
-            </button>
           </div>
         </div>
-        
         <div className="space-y-2">
-          <Label htmlFor="confirm">Confirmer le mot de passe</Label>
+          <Label htmlFor="confirm">Confirm Password</Label>
           <div className="relative">
             <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" aria-hidden="true" />
             <Input
               id="confirm"
-              type={showConfirmPassword ? "text" : "password"}
+              type="password"
               autoComplete="new-password"
               placeholder="••••••••"
               value={confirmPassword}
@@ -118,34 +143,19 @@ export default function ResetPassword() {
               className="pl-10 h-12"
               required
             />
-            <button
-              type="button"
-              onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-              tabIndex={-1}
-            >
-              {showConfirmPassword ? "Masquer" : "Afficher"}
-            </button>
           </div>
         </div>
-
         <Button type="submit" className="w-full h-12 font-medium" disabled={loading}>
           {loading ? (
             <>
               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              Réinitialisation en cours...
+              Resetting...
             </>
           ) : (
-            "Réinitialiser le mot de passe"
+            "Reset password"
           )}
         </Button>
       </form>
-
-      <p className="text-center text-sm text-muted-foreground mt-4">
-        <Link to="/login" className="text-primary font-medium hover:underline">
-          Retour à la connexion
-        </Link>
-      </p>
     </AuthLayout>
   );
 }

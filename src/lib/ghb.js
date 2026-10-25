@@ -1,7 +1,7 @@
-import { useEffect, useState, useCallback } from "react";
-import { base44 } from "@/api/base44Client";
+import { useCallback, useEffect, useState } from "react";
+import { supabase } from "@/lib/supabase";
+import { selectRows } from "@/lib/supabaseData";
 
-// Format a money amount with currency code
 export function formatMoney(amount, currency = "USD") {
   const n = Number(amount || 0);
   const opts = { minimumFractionDigits: 2, maximumFractionDigits: 2 };
@@ -46,145 +46,102 @@ export const TONE_CLASSES = {
   gold: "bg-[#D4AF37]/10 text-[#E8C65A] border-[#D4AF37]/30",
 };
 
-// Upload a private file and return its file_uri
+const PRIVATE_BUCKET = "private-files";
+
 export async function uploadPrivate(file) {
-  const { file_uri } = await base44.integrations.Core.UploadPrivateFile({ file });
-  return file_uri;
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError) throw authError;
+  if (!user) throw new Error("You must be signed in to upload a file.");
+
+  const safeName = file.name.replace(/[^\w.-]/g, "_");
+  const path = `${user.id}/${crypto.randomUUID()}-${safeName}`;
+  const { error } = await supabase.storage.from(PRIVATE_BUCKET).upload(path, file, {
+    contentType: file.type || "application/octet-stream",
+    upsert: false,
+  });
+  if (error) throw error;
+  return path;
 }
 
-// Create a signed URL for a private file_uri
-export async function signFile(file_uri) {
-  const { signed_url } = await base44.integrations.Core.CreateFileSignedUrl({ file_uri });
-  return signed_url;
+export async function signFile(path) {
+  const { data, error } = await supabase.storage.from(PRIVATE_BUCKET).createSignedUrl(path, 60 * 10);
+  if (error) throw error;
+  return data.signedUrl;
 }
 
-// Hook: current user with refresh
 export function useCurrentUser() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [reloadKey, setReloadKey] = useState(0);
-
-  const refresh = useCallback(() => setReloadKey((k) => k + 1), []);
+  const refresh = useCallback(() => setReloadKey((key) => key + 1), []);
 
   useEffect(() => {
     let alive = true;
     setLoading(true);
-    base44.auth.me()
-      .then((u) => { if (alive) { setUser(u); setLoading(false); } })
-      .catch(() => { if (alive) { setUser(null); setLoading(false); } });
+    supabase.auth.getUser().then(async ({ data, error }) => {
+      if (error) throw error;
+      if (!data.user) return null;
+      const rows = await selectRows("profiles", { id: data.user.id }, { limit: 1 });
+      return { ...data.user, ...(data.user.user_metadata || {}), ...(rows[0] || {}), id: data.user.id, email: data.user.email };
+    }).then((currentUser) => {
+      if (alive) setUser(currentUser);
+    }).catch((error) => {
+      console.error("Failed to load the current profile:", error);
+      if (alive) setUser(null);
+    }).finally(() => {
+      if (alive) setLoading(false);
+    });
     return () => { alive = false; };
   }, [reloadKey]);
 
   return { user, loading, refresh };
 }
 
-// Multi-currency wallet helpers.
-// balances is a map of currency code -> amount. Old single-balance wallets are
-// treated as { USD: balance } for migration.
-export function getBalances(wallet) {
-  if (wallet?.balances && typeof wallet.balances === "object") return { ...wallet.balances };
-  if (wallet && typeof wallet.balance === "number") return { USD: wallet.balance };
-  return {};
-}
-
-// Convert an amount of `code` into USD using the currency's buy_rate (client
-// spends `code` to acquire USD -> higher rate -> fewer USD = app margin).
-export function toUsd(amount, code, currencies) {
-  const a = Number(amount) || 0;
-  if (!a) return 0;
-  if (code === "USD") return a;
-  const c = (currencies || []).find((x) => x.code === code);
-  const rate = Number(c?.buy_rate) || 0;
-  if (rate > 0) return a / rate;
-  return code === "USDT" ? a : 0;
-}
-
-// Convert USD into `code` using the currency's sell_rate (app pays out `code`
-// per USD -> lower rate -> less `code` = app margin).
-export function fromUsd(usd, code, currencies) {
-  const a = Number(usd) || 0;
-  if (!a) return 0;
-  if (code === "USD") return a;
-  const c = (currencies || []).find((x) => x.code === code);
-  const rate = Number(c?.sell_rate) || 0;
-  if (rate > 0) return a * rate;
-  return code === "USDT" ? a : 0;
-}
-
-// Convert between any two currencies via USD.
-export function convertCurrency(amount, fromCode, toCode, currencies) {
-  if (fromCode === toCode) return Number(amount) || 0;
-  return fromUsd(toUsd(amount, fromCode, currencies), toCode, currencies);
-}
-
-// Return a new balances object with `amount` added to `code`.
-export function withCredit(balances, code, amount) {
-  const next = { ...(balances || {}) };
-  next[code] = Number(next[code] || 0) + Number(amount);
-  return next;
-}
-
-// Return a new balances object with `amount` subtracted from `code` (floored at 0).
-export function withDebit(balances, code, amount) {
-  const next = { ...(balances || {}) };
-  next[code] = Math.max(0, Number(next[code] || 0) - Number(amount));
-  return next;
-}
-
-// Hook: current user's multi-currency wallet (read-only for users; admin writes).
 export function useWallet(userId) {
   const [wallet, setWallet] = useState(null);
-  const [currencies, setCurrencies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [reloadKey, setReloadKey] = useState(0);
-  const refresh = useCallback(() => setReloadKey((k) => k + 1), []);
+  const refresh = useCallback(() => setReloadKey((key) => key + 1), []);
 
   useEffect(() => {
     let alive = true;
-    if (!userId) { setLoading(false); return; }
-    setLoading(true);
-    Promise.all([
-      base44.entities.Wallet.filter({ user_id: userId }, { limit: 1 }),
-      base44.entities.Currency.filter({}, { limit: 100 }),
-    ]).then(([w, c]) => {
-      if (!alive) return;
-      setWallet(w.items[0] || null);
-      setCurrencies(c.items);
+    if (!userId) {
+      setWallet(null);
       setLoading(false);
-    }).catch(() => { if (alive) setLoading(false); });
+      return undefined;
+    }
+    setLoading(true);
+    selectRows("wallets", { user_id: userId }, { limit: 1 }).then((rows) => {
+      if (alive) setWallet(rows[0] || null);
+    }).catch((error) => {
+      console.error("Failed to load the wallet:", error);
+      if (alive) setWallet(null);
+    }).finally(() => {
+      if (alive) setLoading(false);
+    });
     return () => { alive = false; };
   }, [userId, reloadKey]);
 
-  const balances = getBalances(wallet);
-  const getBalance = (code) => Number(balances[code] || 0);
-  const totalUsd = Object.entries(balances).reduce(
-    (sum, [code, amt]) => sum + toUsd(Number(amt) || 0, code, currencies),
-    0
-  );
-
-  return { wallet, balances, getBalance, totalUsd, loading, refresh };
+  return { wallet, balance: wallet?.balance || 0, loading, refresh };
 }
 
-// Hook: support links (whatsapp direct / group / phone)
 export function useSupportLinks() {
   const [links, setLinks] = useState({ direct: null, group: null, phone: "+257 616 59 327" });
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let alive = true;
-    base44.entities.SupportLink.filter({ active: true }, { limit: 50 })
-      .then(({ items }) => {
-        if (!alive) return;
-        const map = { ...links };
-        for (const l of items) {
-          if (l.type === "whatsapp_direct") map.direct = l;
-          else if (l.type === "whatsapp_group") map.group = l;
-          else if (l.type === "phone") map.phone = l.phone || map.phone;
-        }
-        setLinks(map);
-        setLoading(false);
-      })
-      .catch(() => { if (alive) setLoading(false); });
+    selectRows("support_links", { active: true }, { limit: 50 }).then((rows) => {
+      if (!alive) return;
+      const map = { direct: null, group: null, phone: "+257 616 59 327" };
+      for (const link of rows) {
+        if (link.type === "whatsapp_direct") map.direct = link;
+        else if (link.type === "whatsapp_group") map.group = link;
+        else if (link.type === "phone") map.phone = link.phone || map.phone;
+      }
+      setLinks(map);
+    }).catch((error) => {
+      console.error("Failed to load support links:", error);
+    });
     return () => { alive = false; };
   }, []);
 

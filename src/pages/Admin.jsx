@@ -12,9 +12,7 @@ import AnnouncementsTab from "@/components/admin/AnnouncementsTab";
 import TickerTab from "@/components/admin/TickerTab";
 import AboutTab from "@/components/admin/AboutTab";
 import ReferralsTab from "@/components/admin/ReferralsTab";
-import SettingsTab from "@/components/admin/SettingsTab";
-import UsersTab from "@/components/admin/UsersTab";
-import { ShieldCheck, ArrowDownToLine, ArrowUpFromLine, MapPin, Coins, LifeBuoy, Inbox, Megaphone, Activity, Info, Gift, Settings, Users } from "lucide-react";
+import { ShieldCheck, ArrowDownToLine, ArrowUpFromLine, MapPin, Coins, LifeBuoy, Inbox, Megaphone, Activity, Info, Gift } from "lucide-react";
 
 export default function Admin() {
   const [tab, setTab] = useState("kyc");
@@ -37,7 +35,6 @@ export default function Admin() {
           <span><span className="block text-sm font-semibold">Moyens de paiement</span><span className="block text-xs text-muted-foreground">Ajouter et modifier les méthodes et adresses de dépôt</span></span>
         </button>
         <TabsList className="flex justify-start w-full overflow-x-auto bg-secondary border border-border h-auto p-1.5 gap-1">
-          <Tab v="users" icon={Users} label="Utilisateurs" />
           <Tab v="kyc" icon={ShieldCheck} label="KYC" />
           <Tab v="deposits" icon={ArrowDownToLine} label="Dépôts" />
           <Tab v="transfers" icon={ArrowUpFromLine} label="Transferts" />
@@ -49,10 +46,8 @@ export default function Admin() {
           <Tab v="ticker" icon={Activity} label="Bandeau" />
           <Tab v="about" icon={Info} label="À propos" />
           <Tab v="referrals" icon={Gift} label="Parrainage" />
-          <Tab v="settings" icon={Settings} label="Paramètres" />
         </TabsList>
 
-        <TabsContent value="users" className="mt-4"><UsersTab /></TabsContent>
         <TabsContent value="kyc" className="mt-4"><KycTab /></TabsContent>
         <TabsContent value="deposits" className="mt-4"><DepositsTab /></TabsContent>
         <TabsContent value="transfers" className="mt-4"><TransfersTab /></TabsContent>
@@ -64,7 +59,6 @@ export default function Admin() {
         <TabsContent value="ticker" className="mt-4"><TickerTab /></TabsContent>
         <TabsContent value="about" className="mt-4"><AboutTab /></TabsContent>
         <TabsContent value="referrals" className="mt-4"><ReferralsTab /></TabsContent>
-        <TabsContent value="settings" className="mt-4"><SettingsTab /></TabsContent>
       </Tabs>
     </div>
   );

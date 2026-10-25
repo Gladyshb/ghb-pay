@@ -4,7 +4,7 @@ import { uploadPrivate } from "@/lib/ghb";
 
 // A controlled file uploader. Stores the resulting private file_uri in onChange.
 // `value` is the stored file_uri (string). `preview` optionally shows a signed URL image.
-export default function FileUpload({ value, onChange, label = "Téléverser un fichier", accept = "image/*", hint }) {
+export default function FileUpload({ value, onChange, label = "Téléverser un fichier", accept = "image/*", hint = "" }) {
   const inputRef = useRef(null);
   const [busy, setBusy] = useState(false);
   const [name, setName] = useState("");

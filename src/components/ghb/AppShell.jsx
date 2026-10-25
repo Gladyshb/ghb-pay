@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { Outlet, NavLink, useLocation, useNavigate } from "react-router-dom";
-import { Home, ArrowDownToLine, ArrowUpFromLine, ReceiptText, History as HistoryIcon, MessageSquare, ShieldAlert, LogOut, LayoutDashboard, Gift, Info } from "lucide-react";
+import { Home, ArrowDownToLine, ArrowUpFromLine, History as HistoryIcon, MessageSquare, ShieldAlert, LogOut, LayoutDashboard, Gift, Info } from "lucide-react";
 import { useCurrentUser, useWallet, KYC_META } from "@/lib/ghb";
 import { useAuth } from "@/lib/AuthContext";
 import Logo from "./Logo";
@@ -18,7 +18,7 @@ const NAV = [
 
 export default function AppShell() {
   const { user, loading } = useCurrentUser();
-  const { totalUsd } = useWallet(user?.id);
+  const { balance } = useWallet(user?.id);
   const { logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
@@ -27,6 +27,14 @@ export default function AppShell() {
   const kyc = user?.kyc_status || "not_submitted";
   const isKycRoute = location.pathname === "/kyc";
   const isAdminRoute = location.pathname.startsWith("/admin");
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } catch (error) {
+      alert(error.message || "Unable to sign out.");
+    }
+  };
 
   // Non-admin without approved KYC: only allow /kyc route
   const gated = !isAdmin && kyc !== "approved" && !isKycRoute;
@@ -74,7 +82,7 @@ export default function AppShell() {
               <div className="hidden sm:flex items-center gap-2 px-3 py-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10">
                 <span className="text-xs text-muted-foreground">Solde</span>
                 <span className="text-sm font-bold ghb-gold-text">
-                  ${totalUsd.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  ${balance.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </span>
               </div>
             )}
@@ -84,7 +92,7 @@ export default function AppShell() {
               }>
               <Info className="w-3.5 h-3.5" /> <span className="hidden sm:inline">À propos</span>
             </NavLink>
-            <button onClick={() => logout()} title="Déconnexion"
+            <button onClick={handleLogout} title="Déconnexion"
               className="p-2 rounded-lg border border-white/10 text-muted-foreground hover:bg-white/5 hover:text-foreground">
               <LogOut className="w-4 h-4" />
             </button>
@@ -93,7 +101,7 @@ export default function AppShell() {
       </header>
 
       {/* Main */}
-      <main className="flex-1 max-w-6xl w-full mx-auto px-4 pt-5 pb-28 sm:pb-10">
+      <main className="flex-1 max-w-6xl w-full mx-auto px-4 pt-5 pb-28 sm:pb-10 overflow-y-auto">
         {gated && isKycRoute ? (
           <Outlet />
         ) : (

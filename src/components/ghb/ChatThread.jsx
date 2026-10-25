@@ -1,11 +1,24 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { base44 } from "@/api/base44Client";
+import { insertRow, selectRows } from "@/lib/supabaseData";
+import { supabase } from "@/lib/supabase";
 import { Paperclip, Send, Loader2, Download, FileText } from "lucide-react";
 import { uploadPrivate, signFile, formatDate } from "@/lib/ghb";
 
+/** @typedef {Record<string, any> & {
+ *   id?: string,
+ *   thread_type?: string,
+ *   created_at?: string,
+ *   created_date?: string,
+ *   attachment_uri?: string | null,
+ *   attachment_name?: string | null,
+ *   sender_role?: string,
+ *   text?: string
+ * }} ChatMessage */
+
 export default function ChatThread({ threadType, threadId, participantUserId, viewerRole }) {
-  const [messages, setMessages] = useState([]);
+  const [messages, setMessages] = useState(/** @type {ChatMessage[]} */ ([]));
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [attachment, setAttachment] = useState(null);
@@ -17,19 +30,23 @@ export default function ChatThread({ threadType, threadId, participantUserId, vi
     if (!threadId) return;
     setLoading(true);
     try {
-      const { items } = await base44.entities.ChatMessage.filter(
+      const items = await selectRows("chat_messages",
         { thread_type: threadType, thread_id: threadId },
-        { sort: "created_date", limit: 200 }
+        { sort: "created_at", limit: 200 }
       );
       setMessages(items);
+      setLoadError("");
       // sign attachment previews
       for (const m of items) {
-        if (m.attachment_uri && !previews[m.attachment_uri]) {
+        if (m.attachment_uri) {
           signFile(m.attachment_uri).then((url) =>
             setPreviews((p) => ({ ...p, [m.attachment_uri]: url }))
-          ).catch(() => {});
+          ).catch((error) => console.error("Failed to create attachment preview:", error));
         }
       }
+    } catch (error) {
+      setLoadError(error.message || "Impossible de charger les messages.");
+      console.error("Failed to load chat messages:", error);
     } finally {
       setLoading(false);
     }
@@ -40,20 +57,29 @@ export default function ChatThread({ threadType, threadId, participantUserId, vi
   // realtime subscription
   useEffect(() => {
     if (!threadId) return;
-    const unsub = base44.entities.ChatMessage.subscribe((event) => {
-      if (event.data?.thread_id !== threadId) return;
-      if (event.type === "create") {
-        setMessages((prev) => [...prev, event.data]);
-        if (event.data.attachment_uri) {
-          signFile(event.data.attachment_uri).then((url) =>
-            setPreviews((p) => ({ ...p, [event.data.attachment_uri]: url }))
-          ).catch(() => {});
+    const channel = supabase.channel(`chat-${threadType}-${threadId}`)
+      .on("postgres_changes", {
+        event: "*",
+        schema: "public",
+        table: "chat_messages",
+        filter: `thread_id=eq.${threadId}`,
+      }, (event) => {
+        const message = /** @type {ChatMessage} */ (event.new);
+        if (message?.thread_type !== threadType) return;
+        if (event.eventType === "INSERT") {
+          const mapped = { ...message, created_date: message.created_at };
+          setMessages((prev) => prev.some((item) => item.id === mapped.id) ? prev : [...prev, mapped]);
+          if (mapped.attachment_uri) {
+            signFile(mapped.attachment_uri).then((url) =>
+              setPreviews((prev) => ({ ...prev, [mapped.attachment_uri]: url }))
+            ).catch((error) => console.error("Failed to create attachment preview:", error));
+          }
+        } else {
+          load();
         }
-      } else {
-        load();
-      }
-    });
-    return unsub;
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
   }, [threadId, load]);
 
   useEffect(() => {
@@ -77,7 +103,7 @@ export default function ChatThread({ threadType, threadId, participantUserId, vi
     if (!text.trim() && !attachment) return;
     setSending(true);
     try {
-      await base44.entities.ChatMessage.create({
+      await insertRow("chat_messages", {
         thread_type: threadType,
         thread_id: threadId,
         user_id: participantUserId,
@@ -98,7 +124,9 @@ export default function ChatThread({ threadType, threadId, participantUserId, vi
   return (
     <div className="flex flex-col h-full ghb-card rounded-2xl overflow-hidden">
       <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-3 min-h-[300px] max-h-[60vh]">
-        {loading ? (
+        {loadError ? (
+          <div role="alert" className="text-center text-sm text-destructive py-8">{loadError}</div>
+        ) : loading ? (
           <div className="flex justify-center py-8">
             <Loader2 className="w-5 h-5 text-[#D4AF37] animate-spin" />
           </div>

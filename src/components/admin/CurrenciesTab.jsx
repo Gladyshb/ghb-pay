@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { base44 } from "@/api/base44Client";
+import { insertRow, selectRows, updateRow, deleteRow } from "@/lib/supabaseData";
+import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -38,8 +39,8 @@ export default function CurrenciesTab() {
 
   const load = () => {
     setLoading(true);
-    base44.entities.Currency.filter({}, { sort: "code", limit: 100 })
-      .then(({ items }) => setItems(items))
+    selectRows("currencies", {}, { sort: "code", limit: 100 })
+      .then(setItems)
       .finally(() => setLoading(false));
   };
   useEffect(load, []);
@@ -50,27 +51,18 @@ export default function CurrenciesTab() {
     const spread = Math.max(0, Number(spreadVal) || 0);
     if (fee === Number(c.fee_percent ?? 5) && spread === Number(c.spread_fixed ?? 0)) return;
     const { buy, sell } = computeRates(c.binance_rate, fee, spread);
-    await base44.entities.Currency.update(c.id, { fee_percent: fee, spread_fixed: spread, buy_rate: buy, sell_rate: sell });
+    await updateRow("currencies", c.id, { fee_percent: fee, spread_fixed: spread, buy_rate: buy, sell_rate: sell });
     load();
   };
 
-  const toggleActive = async (c) => { await base44.entities.Currency.update(c.id, { active: !c.active }); load(); };
-  const toggleManual = async (c) => { await base44.entities.Currency.update(c.id, { manual_override: !c.manual_override }); load(); };
-
-  // Edit the reference rate inline; auto-enables manual override so auto-sync won't overwrite it.
-  const updateReference = async (c, refVal) => {
-    const ref = Math.max(0, Number(refVal) || 0);
-    if (ref === Number(c.binance_rate || 0)) return;
-    const { buy, sell } = computeRates(ref, c.fee_percent ?? 5, c.spread_fixed ?? 0);
-    await base44.entities.Currency.update(c.id, { binance_rate: ref, manual_override: true, buy_rate: buy, sell_rate: sell });
-    load();
-  };
+  const toggleActive = async (c) => { await updateRow("currencies", c.id, { active: !c.active }); load(); };
+  const toggleManual = async (c) => { await updateRow("currencies", c.id, { manual_override: !c.manual_override }); load(); };
 
   const sync = async () => {
     setSyncing(true);
     try {
-      const res = await base44.functions.invoke("syncBinanceRates");
-      const data = res?.data || res;
+      const { data, error: syncError } = await supabase.functions.invoke("sync-binance-rates");
+      if (syncError) throw syncError;
       setSyncInfo({ source: data?.source, synced: data?.synced });
       load();
     } catch (e) { alert(e.message); } finally { setSyncing(false); }
@@ -91,15 +83,15 @@ export default function CurrenciesTab() {
         buy_rate: buy,
         sell_rate: sell,
       };
-      if (editing === "new") await base44.entities.Currency.create(payload);
-      else await base44.entities.Currency.update(editing, payload);
+      if (editing === "new") await insertRow("currencies", payload);
+      else await updateRow("currencies", editing, payload);
       setEditing(null); load();
     } catch (e) { alert(e.message); } finally { setSaving(false); }
   };
 
   const remove = async (c) => {
     if (!confirm("Supprimer cette devise ?")) return;
-    await base44.entities.Currency.delete(c.id); load();
+    await deleteRow("currencies", c.id); load();
   };
 
   if (loading) return <div className="flex justify-center py-10"><Loader2 className="w-6 h-6 text-[#D4AF37] animate-spin" /></div>;
@@ -177,14 +169,7 @@ export default function CurrenciesTab() {
               {/* Spread / Fee editor */}
               {!isBase && (
                 <div className="flex items-center gap-2 flex-wrap">
-                  <Label className="text-[11px] text-muted-foreground whitespace-nowrap">Réf. (par USD)</Label>
-                  <Input
-                    type="number" min="0" step="0.0001" defaultValue={Number(c.binance_rate || 0)}
-                    onBlur={(e) => updateReference(c, e.target.value)}
-                    className="h-8 bg-white/5 border-white/10 text-sm w-24"
-                    placeholder="0"
-                  />
-                  <Label className="text-[11px] text-muted-foreground whitespace-nowrap ml-1">Spread fixe</Label>
+                  <Label className="text-[11px] text-muted-foreground whitespace-nowrap">Spread fixe</Label>
                   <Input
                     type="number" min="0" step="1" defaultValue={spread}
                     onBlur={(e) => updateSpread(c, fee, e.target.value)}
@@ -228,10 +213,10 @@ export default function CurrenciesTab() {
                 </Select>
               </Field>
             </div>
-            <Field label="Taux de référence (par USD) — ex: 6000 pour le BIF"><Input type="number" min="0" step="0.0001" value={form.binance_rate} onChange={(e) => setForm({ ...form, binance_rate: e.target.value })} className="bg-white/5 border-white/10" /></Field>
+            <Field label="Taux de référence (par USD) — ex: 6000 pour le BIF"><Input type="number" min="0" step="0.0001" value={form.binance_rate} onChange={(e) => setForm({ ...form, binance_rate: Number(e.target.value) })} className="bg-white/5 border-white/10" /></Field>
             <div className="grid grid-cols-2 gap-3">
-              <Field label="Spread fixe (ex: 150)"><Input type="number" min="0" step="1" value={form.spread_fixed} onChange={(e) => setForm({ ...form, spread_fixed: e.target.value })} className="bg-white/5 border-white/10" /></Field>
-              <Field label="Fee % (si spread = 0)"><Input type="number" min="0" step="0.1" value={form.fee_percent} onChange={(e) => setForm({ ...form, fee_percent: e.target.value })} className="bg-white/5 border-white/10" /></Field>
+              <Field label="Spread fixe (ex: 150)"><Input type="number" min="0" step="1" value={form.spread_fixed} onChange={(e) => setForm({ ...form, spread_fixed: Number(e.target.value) })} className="bg-white/5 border-white/10" /></Field>
+              <Field label="Fee % (si spread = 0)"><Input type="number" min="0" step="0.1" value={form.fee_percent} onChange={(e) => setForm({ ...form, fee_percent: Number(e.target.value) })} className="bg-white/5 border-white/10" /></Field>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <Field label="Taux Achat (auto = Réf + Spread)"><Input type="number" step="0.0001" value={computeRates(form.binance_rate, form.fee_percent, form.spread_fixed).buy} disabled className="bg-white/5 border-white/10 text-emerald-400" /></Field>
