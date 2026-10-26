@@ -5,13 +5,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { UserPlus, Mail, Lock, Loader2, ShieldCheck, UploadCloud, FileCheck2, Ticket } from "lucide-react";
+import { UserPlus, Mail, Lock, Loader2, ShieldCheck, Ticket } from "lucide-react";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import AuthLayout from "@/components/AuthLayout";
 import GoogleIcon from "@/components/GoogleIcon";
 import { toast } from "@/components/ui/use-toast";
 import { safeReturnTo } from "@/lib/authReturnTo";
-import { uploadPrivate } from "@/lib/ghb";
 
 const COUNTRIES = ["Burundi", "RDC", "Kenya", "Rwanda", "Tanzanie", "Ouganda", "Zambie", "Côte d'Ivoire", "Sénégal", "Maroc", "Algérie", "Émirats Arabes Unis", "Autre"];
 
@@ -25,26 +24,16 @@ export default function Register() {
   const [promoCode, setPromoCode] = useState(refCode);
   const [phone, setPhone] = useState("");
   const [country, setCountry] = useState("");
-  const [docType, setDocType] = useState("national_id");
-  const [docFile, setDocFile] = useState(null);
-  const [docName, setDocName] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [showOtp, setShowOtp] = useState(false);
   const [otpCode, setOtpCode] = useState("");
-
-  const handleFile = (file) => {
-    if (!file) return;
-    setDocFile(file);
-    setDocName(file.name);
-  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
     if (password !== confirmPassword) { setError("Les mots de passe ne correspondent pas."); return; }
     if (!legalName || !phone || !country) { setError("Veuillez remplir votre nom, téléphone et pays."); return; }
-    if (!docFile) { setError("Veuillez téléverser votre pièce d'identité."); return; }
     setLoading(true);
     try {
       const { data, error: signUpError } = await supabase.auth.signUp({
@@ -63,7 +52,7 @@ export default function Register() {
       if (signUpError) throw signUpError;
       if (data.session) {
         await completeRegistration(data.user);
-        window.location.assign(safeReturnTo());
+        window.location.assign("/kyc");
       } else {
         setShowOtp(true);
       }
@@ -75,15 +64,11 @@ export default function Register() {
   };
 
   const completeRegistration = async (authUser) => {
-    const fileUri = await uploadPrivate(docFile);
     const { error: profileError } = await supabase.from("profiles").update({
       legal_name: legalName,
       username: username || legalName,
       phone,
       country,
-      id_document_type: docType,
-      id_document_uri: fileUri,
-      kyc_status: "pending",
     }).eq("id", authUser.id);
     if (profileError) throw profileError;
 
@@ -101,6 +86,7 @@ export default function Register() {
   const handleVerify = async () => {
     setError("");
     setLoading(true);
+    let verified = false;
     try {
       const { data, error: verifyError } = await supabase.auth.verifyOtp({
         email,
@@ -109,9 +95,18 @@ export default function Register() {
       });
       if (verifyError) throw verifyError;
       if (!data.user) throw new Error("The verification response did not include a user.");
+      verified = true;
       await completeRegistration(data.user);
-      window.location.assign(safeReturnTo());
+      window.location.assign("/kyc");
     } catch (err) {
+      if (verified) {
+        toast({
+          title: "Email vérifié",
+          description: "Votre compte est connecté. Ajoutez votre pièce d'identité sur la page de vérification.",
+        });
+        window.location.assign("/kyc");
+        return;
+      }
       setError(err.message || "Code de vérification invalide");
     } finally {
       setLoading(false);
@@ -147,7 +142,7 @@ export default function Register() {
 
   if (showOtp) {
     return (
-      <AuthLayout icon={Mail} title="Vérifiez votre email" subtitle={`Un code a été envoyé à ${email}`}>
+      <AuthLayout icon={Mail} title="Vérifiez votre email" subtitle={`Un code a été envoyé à ${email}. Après vérification, vous pourrez ajouter votre pièce d'identité.`}>
         {error && <div className="mb-4 p-3 rounded-lg bg-destructive/10 text-destructive text-sm">{error}</div>}
         <div className="flex justify-center mb-6">
           <InputOTP maxLength={6} value={otpCode} onChange={setOtpCode} autoFocus autoComplete="one-time-code">
@@ -235,41 +230,13 @@ export default function Register() {
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="doc_type">Type de pièce d'identité</Label>
-          <Select value={docType} onValueChange={setDocType}>
-            <SelectTrigger className="h-11 bg-white/5 border-white/10"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="national_id">Carte d'identité nationale</SelectItem>
-              <SelectItem value="passport">Passeport</SelectItem>
-              <SelectItem value="driver_license">Permis de conduire</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="space-y-2">
-          <Label>Photo / scan de la pièce d'identité</Label>
-          <label className="w-full flex flex-col items-center justify-center gap-2 px-4 py-5 rounded-xl border-2 border-dashed border-white/15 bg-white/[0.02] hover:border-[#D4AF37]/50 cursor-pointer transition text-center">
-            {docFile ? (
-              <div className="flex items-center gap-2 text-emerald-400"><FileCheck2 className="w-5 h-5" /><span className="text-sm text-foreground truncate max-w-[200px]">{docName}</span></div>
-            ) : (
-              <>
-                <UploadCloud className="w-6 h-6 text-muted-foreground" />
-                <span className="text-sm text-foreground">Cliquez pour téléverser</span>
-                <span className="text-xs text-muted-foreground">JPG, PNG ou PDF</span>
-              </>
-            )}
-            <input type="file" accept="image/*,application/pdf" className="hidden" onChange={(e) => handleFile(e.target.files?.[0])} />
-          </label>
-        </div>
-
-        <div className="space-y-2">
           <Label htmlFor="promo" className="flex items-center gap-1.5"><Ticket className="w-3.5 h-3.5 text-[#D4AF37]" /> Code Promo / Parrainage (optionnel)</Label>
           <Input id="promo" value={promoCode} onChange={(e) => setPromoCode(e.target.value.toUpperCase())} placeholder="Code de votre parrain" className="h-11 bg-white/5 border-white/10 uppercase tracking-widest font-medium" />
         </div>
 
         <div className="flex items-start gap-2 text-xs text-muted-foreground">
           <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-          <span>Votre compte sera en attente d'approbation jusqu'à validation de votre KYC par un administrateur.</span>
+          <span>Après vérification de votre email, vous pourrez téléverser votre pièce d'identité. Votre compte restera en attente jusqu'à validation du KYC.</span>
         </div>
 
         <Button type="submit" className="w-full h-12 font-semibold ghb-gold-bg text-black hover:opacity-90" disabled={loading}>
