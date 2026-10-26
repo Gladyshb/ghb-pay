@@ -94,7 +94,7 @@ export function AuthProvider({ children }) {
       );
       if (!sameUser) setIsLoadingAuth(true);
 
-      queueMicrotask(() => {
+      setTimeout(() => {
         if (!active) return;
         loadUser(session?.user || null, requestId).catch((error) => {
           if (!active || requestId !== authRequestRef.current) return;
@@ -108,7 +108,7 @@ export function AuthProvider({ children }) {
           setIsLoadingAuth(false);
           setAuthChecked(true);
         });
-      });
+      }, 0);
     });
 
     return () => {
