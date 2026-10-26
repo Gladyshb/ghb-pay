@@ -5,6 +5,7 @@ import { uploadPrivate } from "@/lib/ghb";
 export default function FileUpload({ value, onChange, label = "Téléverser un fichier", accept = "image/*", hint = "" }) {
   const inputRef = useRef(null);
   const inputId = useId();
+  const lastHandledFileRef = useRef("");
   const [busy, setBusy] = useState(false);
   const [name, setName] = useState("");
   const [error, setError] = useState("");
@@ -13,22 +14,44 @@ export default function FileUpload({ value, onChange, label = "Téléverser un f
     const input = event.currentTarget;
     const file = input.files?.[0];
 
-    if (!file) {
-      setError("Aucun fichier n’a été reçu. Réessayez de choisir le document.");
+    if (!file || busy) {
+      if (!file) {
+        setError("Aucun fichier n’a été reçu. Réessayez de choisir le document.");
+      }
       return;
     }
 
+    if (file.size === 0) {
+      setError("Le fichier sélectionné est vide.");
+      input.value = "";
+      return;
+    }
+
+    const fileKey = `${file.name}-${file.size}-${file.lastModified}`;
+    if (lastHandledFileRef.current === fileKey && value) {
+      input.value = "";
+      return;
+    }
+
+    lastHandledFileRef.current = fileKey;
     setError("");
     setBusy(true);
     setName(file.name);
+
     try {
       const uri = await uploadPrivate(file);
       onChange(uri, file.name);
+      setError("");
     } catch (uploadError) {
       setError(uploadError instanceof Error ? uploadError.message : "Échec du téléversement.");
     } finally {
       setBusy(false);
       input.value = "";
+      setTimeout(() => {
+        if (lastHandledFileRef.current === fileKey) {
+          lastHandledFileRef.current = "";
+        }
+      }, 0);
     }
   };
 
@@ -49,6 +72,9 @@ export default function FileUpload({ value, onChange, label = "Téléverser un f
         <label
           htmlFor={inputId}
           aria-disabled={busy}
+          onClick={(event) => {
+            if (busy) event.preventDefault();
+          }}
           className={`flex w-full flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-white/15 bg-white/[0.02] px-4 py-6 text-center transition ${
             busy ? "cursor-wait opacity-60" : "cursor-pointer hover:border-[#D4AF37]/50 hover:bg-white/[0.04]"
           }`}
@@ -77,20 +103,23 @@ export default function FileUpload({ value, onChange, label = "Téléverser un f
           </div>
           <button
             type="button"
+            disabled={busy}
             onClick={() => {
               onChange("", "");
               setName("");
               setError("");
+              lastHandledFileRef.current = "";
             }}
-            className="rounded-lg p-1.5 text-muted-foreground hover:bg-white/10"
+            className="rounded-lg p-1.5 text-muted-foreground hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
             aria-label="Supprimer le fichier sélectionné"
           >
             <X className="h-4 w-4" />
           </button>
           <button
             type="button"
+            disabled={busy}
             onClick={() => inputRef.current?.click()}
-            className="rounded-lg border border-white/15 px-2.5 py-1.5 text-xs text-foreground hover:bg-white/5"
+            className="rounded-lg border border-white/15 px-2.5 py-1.5 text-xs text-foreground hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50"
           >
             Changer
           </button>
