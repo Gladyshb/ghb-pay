@@ -18,6 +18,10 @@ The application requires these Vite variables:
 
 Set the same values in the Vercel project environment. Never expose a Supabase service-role key through a `VITE_` variable.
 
+## Progressive Web App
+
+The production frontend serves `public/manifest.webmanifest`, its install icons, and `public/sw.js`. The service worker provides an offline navigation message only; it does not cache authenticated pages, Supabase responses, or user data. Serve the app over HTTPS for browser installation. After deployment, open the site in Chrome on Android and use Chrome's **Install app** option when it becomes available; iOS uses **Add to Home Screen** in Safari.
+
 ## Supabase configuration
 
 Enable email/password and Google providers in Supabase Auth. Set the site URL and redirect allow-list to include the local Vite URL and the deployed Vercel URL. The migrations create the `profiles` table and its Auth trigger, application tables, RLS policies, private file bucket, and the RPC functions used for referral and wallet operations. The incremental private-file migration repairs a missing bucket and reapplies its owner/admin storage policies.

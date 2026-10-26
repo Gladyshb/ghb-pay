@@ -1,0 +1,26 @@
+{
+  "id": "/",
+  "name": "GHB Pay — GLADYS HB BUSINESS GROUP",
+  "short_name": "GHB Pay",
+  "description": "Plateforme sécurisée d’échange financier et de transfert d’argent.",
+  "start_url": "/login",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#061a16",
+  "theme_color": "#061a16",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

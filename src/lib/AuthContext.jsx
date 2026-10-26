@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 
@@ -9,10 +9,15 @@ export function AuthProvider({ children }) {
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
   const [authError, setAuthError] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
+  const currentUserRef = useRef(null);
+  const authRequestRef = useRef(0);
   const navigate = useNavigate();
 
-  const loadUser = useCallback(async (authUser) => {
+  const loadUser = useCallback(async (authUser, requestId) => {
+    if (requestId !== authRequestRef.current) return null;
+
     if (!authUser) {
+      currentUserRef.current = null;
       setUser(null);
       setAuthError(null);
       setIsLoadingAuth(false);
@@ -26,6 +31,7 @@ export function AuthProvider({ children }) {
       .eq("id", authUser.id)
       .maybeSingle();
     if (error) throw error;
+    if (requestId !== authRequestRef.current) return null;
 
     const currentUser = {
       ...authUser,
@@ -34,6 +40,7 @@ export function AuthProvider({ children }) {
       id: authUser.id,
       email: authUser.email,
     };
+    currentUserRef.current = currentUser;
     setUser(currentUser);
     setAuthError(null);
     setIsLoadingAuth(false);
@@ -43,11 +50,15 @@ export function AuthProvider({ children }) {
 
   const checkUserAuth = useCallback(async () => {
     setIsLoadingAuth(true);
+    setAuthError(null);
+    const requestId = ++authRequestRef.current;
     try {
       const { data, error } = await supabase.auth.getUser();
       if (error) throw error;
-      return await loadUser(data.user);
+      return await loadUser(data.user, requestId);
     } catch (error) {
+      if (requestId !== authRequestRef.current) return null;
+      currentUserRef.current = null;
       setUser(null);
       setAuthError({ type: "unknown", message: error.message });
       setIsLoadingAuth(false);
@@ -65,30 +76,39 @@ export function AuthProvider({ children }) {
         sessionStorage.removeItem("supabase_password_recovery");
       }
       if (!active) return;
-      setIsLoadingAuth(true);
-      queueMicrotask(async () => {
+
+      if (event === "TOKEN_REFRESHED") return;
+
+      const requestId = ++authRequestRef.current;
+      if (event === "SIGNED_OUT") {
+        currentUserRef.current = null;
+        setUser(null);
+        setAuthError(null);
+        setIsLoadingAuth(false);
+        setAuthChecked(true);
+        return;
+      }
+
+      const sameUser = Boolean(
+        session?.user?.id && currentUserRef.current?.id === session.user.id
+      );
+      if (!sameUser) setIsLoadingAuth(true);
+
+      queueMicrotask(() => {
         if (!active) return;
-        try {
-          await loadUser(session?.user || null);
-        } catch (error) {
-          if (!active) return;
-          setUser(null);
-          setAuthError({ type: "unknown", message: error.message });
+        loadUser(session?.user || null, requestId).catch((error) => {
+          if (!active || requestId !== authRequestRef.current) return;
+          if (currentUserRef.current?.id !== session?.user?.id) {
+            currentUserRef.current = null;
+            setUser(null);
+            setAuthError({ type: "unknown", message: error.message });
+          } else {
+            console.error("Unable to refresh the current Supabase profile:", error);
+          }
           setIsLoadingAuth(false);
           setAuthChecked(true);
-        }
+        });
       });
-    });
-
-    supabase.auth.getSession().then(async ({ data, error }) => {
-      if (!active) return;
-      if (error) throw error;
-      await loadUser(data.session?.user || null);
-    }).catch((error) => {
-      if (!active) return;
-      setAuthError({ type: "unknown", message: error.message });
-      setIsLoadingAuth(false);
-      setAuthChecked(true);
     });
 
     return () => {
