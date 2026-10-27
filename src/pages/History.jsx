@@ -18,13 +18,13 @@ const STATUS_LABEL = {
 };
 
 function buildRows(deposits, transfers) {
-  const d = (deposits || []).map((x) => ({
+ const d = (deposits || []).filter(Boolean).map((x) => ({
     id: x.id, date: x.created_date, type: "deposit",
     details: x.deposit_address_label || x.deposit_address_id || "Dépôt",
     amount: x.amount, currency: x.currency, status: x.status,
     threadType: "deposit", threadId: x.id,
   }));
-  const t = (transfers || []).map((x) => ({
+  const t = (transfers || []).filter(Boolean).map((x) => ({
     id: x.id, date: x.created_date, type: "transfer",
     details: `${x.beneficiary_name || "Bénéficiaire"} · ${x.to_currency || ""}`,
     amount: x.amount, currency: x.from_currency, status: x.status,

@@ -24,8 +24,8 @@ export default function Chat() {
       selectRows("transfer_requests", {}, { sort: "-created_at", limit: 50 }),
     ]).then(([d, t]) => {
       if (!alive) return;
-      setDeposits(d);
-      setTransfers(t);
+      setDeposits((d || []).filter(Boolean));
+      setTransfers((t || []).filter(Boolean));
       setLoading(false);
     }).catch(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
