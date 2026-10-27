@@ -25,8 +25,11 @@ export default function CurrencyCalculator({ currencies, loading }) {
   const [from, setFrom] = useState("USD");
   const [to, setTo] = useState("BIF");
 
-  const opts = useMemo(
-    () => currencies.map((c) => ({ code: c.code, flag: c.flag_emoji })),
+    const opts = useMemo(
+    () =>
+      currencies
+        .filter((c) => typeof c.code === "string" && c.code.trim() !== "")
+        .map((c) => ({ code: c.code, flag: c.flag_emoji })),
     [currencies]
   );
 

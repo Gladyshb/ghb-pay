@@ -138,7 +138,7 @@ export default function Transfer() {
             <Select value={form.to_currency} onValueChange={(v) => setForm({ ...form, to_currency: v })}>
               <SelectTrigger className="bg-white/5 border-white/10 h-11"><SelectValue /></SelectTrigger>
               <SelectContent>
-                {currencies.map((c) => <SelectItem key={c.code} value={c.code}>{c.flag_emoji} {c.code} — {c.name}</SelectItem>)}
+                {currencies.filter((c) => c.code && c.code.trim()).map((c) => <SelectItem key={c.code} value={c.code}>{c.flag_emoji} {c.code} — {c.name}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>

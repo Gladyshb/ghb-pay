@@ -183,7 +183,7 @@ export default function History() {
               <SelectTrigger className="h-10 bg-white/5 border-white/10"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Toutes les devises</SelectItem>
-                {currencies.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+             {currencies.filter((c) => c && String(c).trim()).map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
