@@ -223,7 +223,7 @@ export default function History() {
       ) : (
         <div className="space-y-2.5">
           {filtered.map((r) => (
-            <Link key={r.id} to={`/chat?threadType=${r.threadType}&threadId=${r.threadId}&userId=${user.id}`}
+            <Link key={r.id} to={`/chat?threadType=${r.threadType}&threadId=${r.threadId}`}
               className="flex items-center justify-between gap-3 px-4 py-3.5 rounded-2xl ghb-card hover:border-[#D4AF37]/40 transition">
               <div className="flex items-center gap-3 min-w-0">
                 <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${r.type === "deposit" ? "ghb-emerald-bg" : "bg-white/10"}`}>
