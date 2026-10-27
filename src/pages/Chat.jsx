@@ -8,16 +8,19 @@ import { ChevronLeft, MessageSquare, LifeBuoy, Loader2, ArrowDownToLine, ArrowUp
 
 export default function Chat() {
   const [params, setParams] = useSearchParams();
-  const { user } = useCurrentUser();
+  const { user, loading: userLoading } = useCurrentUser();
   const threadType = params.get("threadType");
   const threadId = params.get("threadId");
-  const userId = params.get("userId") || user?.id;
+  // Always bind user conversations to the signed-in account; URL parameters are
+  // navigation hints and must not choose the participant identity.
+  const userId = user?.id;
 
   const [deposits, setDeposits] = useState([]);
   const [transfers, setTransfers] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (userLoading || !user) return undefined;
     let alive = true;
     Promise.all([
       selectRows("deposit_requests", {}, { sort: "-created_at", limit: 50 }),
@@ -29,7 +32,7 @@ export default function Chat() {
       setLoading(false);
     }).catch(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
-  }, []);
+  }, [user?.id, userLoading]);
 
   const openThread = (type, id, uid) => {
     const p = new URLSearchParams({ threadType: type, threadId: id, userId: uid });
@@ -37,6 +40,14 @@ export default function Chat() {
   };
 
   const closeThread = () => setParams({});
+
+  if (userLoading) {
+    return <div className="flex justify-center py-10"><Loader2 className="w-6 h-6 text-[#D4AF37] animate-spin" /></div>;
+  }
+
+  if (!user) {
+    return <div role="alert" className="max-w-2xl mx-auto ghb-card rounded-2xl p-8 text-center text-sm text-muted-foreground">Connectez-vous pour consulter vos messages.</div>;
+  }
 
   // Conversation view
   if (threadType && threadId && userId) {

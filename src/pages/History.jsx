@@ -37,7 +37,7 @@ const startOfDay = (s) => (s ? new Date(s + "T00:00:00") : null);
 const endOfDay = (s) => (s ? new Date(s + "T23:59:59") : null);
 
 export default function History() {
-  const { user } = useCurrentUser();
+  const { user, loading: userLoading } = useCurrentUser();
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dateFrom, setDateFrom] = useState("");
@@ -46,6 +46,7 @@ export default function History() {
   const [currency, setCurrency] = useState("all");
 
   useEffect(() => {
+    if (userLoading || !user) return undefined;
     let alive = true;
     setLoading(true);
     Promise.all([
@@ -55,7 +56,7 @@ export default function History() {
       .then(([d, t]) => { if (alive) { setRows(buildRows(d, t)); setLoading(false); } })
       .catch(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
-  }, []);
+  }, [user?.id, userLoading]);
 
   const currencies = useMemo(() => {
     const set = new Set();
@@ -141,6 +142,14 @@ export default function History() {
     }
     doc.save(`releve-ghbpay-${new Date().toISOString().slice(0, 10)}.pdf`);
   };
+
+  if (userLoading) {
+    return <div className="flex justify-center py-10"><Loader2 className="w-6 h-6 text-[#D4AF37] animate-spin" /></div>;
+  }
+
+  if (!user) {
+    return <div role="alert" className="max-w-3xl mx-auto ghb-card rounded-2xl p-8 text-center text-sm text-muted-foreground">Connectez-vous pour consulter votre historique.</div>;
+  }
 
   return (
     <div className="max-w-3xl mx-auto space-y-5">
