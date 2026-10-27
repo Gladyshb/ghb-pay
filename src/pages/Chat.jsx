@@ -73,7 +73,7 @@ export default function Chat() {
         <p className="text-sm text-muted-foreground mt-1">Discutez avec le support pour chaque transaction.</p>
       </div>
 
-      <button onClick={() => openThread("support", "support", user.id)}
+      <button onClick={() => openThread("support", "support", userId)}
         className="w-full flex items-center gap-3 px-4 py-4 rounded-2xl ghb-emerald-bg text-white text-left hover:opacity-95 transition">
         <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center"><LifeBuoy className="w-5 h-5" /></div>
         <div className="flex-1">
@@ -87,17 +87,17 @@ export default function Chat() {
         <div className="flex justify-center py-10"><Loader2 className="w-6 h-6 text-[#D4AF37] animate-spin" /></div>
       ) : (
         <div className="space-y-2.5">
-          {deposits.map((d) => (
+          {deposits.filter((d) => d?.id).map((d) => (
             <ThreadRow key={d.id} icon={ArrowDownToLine}
               title={`Dépôt · ${d.currency} ${d.amount}`}
               sub={formatDate(d.created_date)} status={d.status} meta={DEPOSIT_STATUS}
-              onClick={() => openThread("deposit", d.id, user.id)} />
+              onClick={() => openThread("deposit", d.id, userId)} />
           ))}
-          {transfers.map((t) => (
+          {transfers.filter((t) => t?.id).map((t) => (
             <ThreadRow key={t.id} icon={ArrowUpFromLine}
               title={`Transfert · ${t.from_currency} ${t.amount} → ${t.to_currency}`}
               sub={`${t.beneficiary_name} · ${formatDate(t.created_date)}`} status={t.status} meta={TRANSFER_STATUS}
-              onClick={() => openThread("transfer", t.id, user.id)} />
+              onClick={() => openThread("transfer", t.id, userId)} />
           ))}
           {deposits.length === 0 && transfers.length === 0 && (
             <div className="ghb-card rounded-2xl p-8 text-center text-sm text-muted-foreground">
