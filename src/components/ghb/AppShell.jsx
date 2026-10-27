@@ -1,11 +1,14 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Outlet, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { Home, ArrowDownToLine, ArrowUpFromLine, History as HistoryIcon, MessageSquare, ShieldAlert, LogOut, LayoutDashboard, Gift, Info } from "lucide-react";
-import { useCurrentUser, useWallet, KYC_META } from "@/lib/ghb";
+import { useCurrentUser, useUserBalances, formatMoney, KYC_META } from "@/lib/ghb";
 import { useAuth } from "@/lib/AuthContext";
+import { supabase } from "@/lib/supabase";
 import Logo from "./Logo";
 import SupportButtons from "./SupportButtons";
 import StatusBadge from "./StatusBadge";
+
+const IMPERSONATION_SESSION_KEY = "ghb_admin_impersonation_session";
 
 const NAV = [
   { to: "/", label: "Accueil", icon: Home, end: true },
@@ -18,36 +21,71 @@ const NAV = [
 
 export default function AppShell() {
   const { user, loading } = useCurrentUser();
-  const { balance } = useWallet(user?.id);
+  const { balances } = useUserBalances(user?.id);
   const { logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+  const [impersonationSession, setImpersonationSession] = useState(() => sessionStorage.getItem(IMPERSONATION_SESSION_KEY));
 
   const isAdmin = user?.role === "admin";
   const kyc = user?.kyc_status || "not_submitted";
   const isKycRoute = location.pathname === "/kyc";
   const isAdminRoute = location.pathname.startsWith("/admin");
+  const isImpersonating = Boolean(impersonationSession);
+  const usdBalance = Number(balances.find((balance) => balance.currency === "USD")?.balance || 0);
 
   const handleLogout = async () => {
     try {
+      if (isImpersonating) {
+        await restoreAdministratorSession();
+        return;
+      }
       await logout();
     } catch (error) {
       alert(error.message || "Unable to sign out.");
     }
   };
 
+  const restoreAdministratorSession = async () => {
+    const savedSession = sessionStorage.getItem(IMPERSONATION_SESSION_KEY);
+    if (!savedSession) throw new Error("La session administrateur à restaurer est introuvable.");
+    const session = JSON.parse(savedSession);
+    if (!session.access_token || !session.refresh_token) {
+      throw new Error("La session administrateur enregistrée est invalide.");
+    }
+    const { error } = await supabase.auth.setSession({
+      access_token: session.access_token,
+      refresh_token: session.refresh_token,
+    });
+    if (error) throw error;
+    sessionStorage.removeItem(IMPERSONATION_SESSION_KEY);
+    setImpersonationSession(null);
+    navigate("/admin", { replace: true });
+  };
+
+  useEffect(() => {
+    const syncImpersonationState = () => setImpersonationSession(sessionStorage.getItem(IMPERSONATION_SESSION_KEY));
+    window.addEventListener("ghb-impersonation-change", syncImpersonationState);
+    return () => window.removeEventListener("ghb-impersonation-change", syncImpersonationState);
+  }, []);
+
   // Non-admin without approved KYC: only allow /kyc route
-  const gated = !isAdmin && kyc !== "approved" && !isKycRoute;
+  const gated = !isAdmin && !isImpersonating && kyc !== "approved" && !isKycRoute;
   // Admin console reserved to admins
   const adminBlocked = isAdminRoute && !isAdmin;
 
   useEffect(() => {
     if (loading) return;
+    if (user?.is_blocked) {
+      logout(false).then(() => navigate("/login?blocked=1", { replace: true }))
+        .catch((error) => console.error("Could not sign out a blocked account:", error));
+      return;
+    }
     if (adminBlocked) { navigate("/", { replace: true }); return; }
     if (gated && !isKycRoute) navigate("/kyc", { replace: true });
-  }, [gated, isKycRoute, adminBlocked, loading, navigate]);
+  }, [gated, isKycRoute, adminBlocked, loading, navigate, user?.is_blocked, logout]);
 
-  if (!loading && (gated || adminBlocked)) {
+  if (!loading && (gated || adminBlocked || user?.is_blocked)) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="w-8 h-8 border-4 border-white/10 border-t-[#D4AF37] rounded-full animate-spin" />
@@ -65,6 +103,15 @@ export default function AppShell() {
 
   return (
     <div className="min-h-screen flex flex-col ghb-gradient">
+      {isImpersonating && (
+        <div className="sticky top-0 z-40 flex items-center justify-between gap-3 bg-amber-500 px-4 py-2 text-sm font-medium text-black">
+          <span>Mode assistance : connecté en tant que {user?.email || "utilisateur"}.</span>
+          <button type="button" onClick={() => restoreAdministratorSession().catch((error) => alert(error.message))}
+            className="shrink-0 rounded-md border border-black/30 px-3 py-1 font-semibold hover:bg-black/10">
+            Revenir à l’administration
+          </button>
+        </div>
+      )}
       {/* Header */}
       <header className="sticky top-0 z-30 backdrop-blur-xl bg-background/80 border-b border-white/5">
         <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between gap-3">
@@ -82,7 +129,7 @@ export default function AppShell() {
               <div className="hidden sm:flex items-center gap-2 px-3 py-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10">
                 <span className="text-xs text-muted-foreground">Solde</span>
                 <span className="text-sm font-bold ghb-gold-text">
-                  ${balance.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  {formatMoney(usdBalance, "USD")}
                 </span>
               </div>
             )}

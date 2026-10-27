@@ -77,28 +77,62 @@ export function useCurrentUser() {
 
   useEffect(() => {
     let alive = true;
+    let requestId = 0;
+    const loadUser = async (authUser) => {
+      const currentRequestId = ++requestId;
+      if (!authUser) {
+        if (alive) {
+          setUser(null);
+          setLoading(false);
+        }
+        return;
+      }
+
+      setLoading(true);
+      try {
+        const rows = await selectRows("profiles", { id: authUser.id }, { limit: 1 });
+        if (!alive || currentRequestId !== requestId) return;
+        setUser({
+          ...authUser,
+          ...(authUser.user_metadata || {}),
+          ...(rows[0] || {}),
+          id: authUser.id,
+          email: authUser.email,
+        });
+      } catch (error) {
+        console.error("Failed to load the current profile:", error);
+        if (alive && currentRequestId === requestId) setUser(null);
+      } finally {
+        if (alive && currentRequestId === requestId) setLoading(false);
+      }
+    };
+
     setLoading(true);
-    supabase.auth.getUser().then(async ({ data, error }) => {
-      if (error) throw error;
-      if (!data.user) return null;
-      const rows = await selectRows("profiles", { id: data.user.id }, { limit: 1 });
-      return { ...data.user, ...(data.user.user_metadata || {}), ...(rows[0] || {}), id: data.user.id, email: data.user.email };
-    }).then((currentUser) => {
-      if (alive) setUser(currentUser);
-    }).catch((error) => {
-      console.error("Failed to load the current profile:", error);
-      if (alive) setUser(null);
-    }).finally(() => {
-      if (alive) setLoading(false);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event !== "TOKEN_REFRESHED") void loadUser(session?.user || null);
     });
-    return () => { alive = false; };
+    supabase.auth.getUser().then(({ data, error }) => {
+      if (error) throw error;
+      return loadUser(data.user);
+    }).catch((error) => {
+      console.error("Failed to load the current authenticated user:", error);
+      if (alive) {
+        setUser(null);
+        setLoading(false);
+      }
+    });
+
+    return () => {
+      alive = false;
+      subscription.unsubscribe();
+    };
   }, [reloadKey]);
 
   return { user, loading, refresh };
 }
 
-export function useWallet(userId) {
-  const [wallet, setWallet] = useState(null);
+export function useUserBalances(userId) {
+  const [balances, setBalances] = useState([]);
   const [loading, setLoading] = useState(true);
   const [reloadKey, setReloadKey] = useState(0);
   const refresh = useCallback(() => setReloadKey((key) => key + 1), []);
@@ -106,23 +140,23 @@ export function useWallet(userId) {
   useEffect(() => {
     let alive = true;
     if (!userId) {
-      setWallet(null);
+      setBalances([]);
       setLoading(false);
       return undefined;
     }
     setLoading(true);
-    selectRows("wallets", { user_id: userId }, { limit: 1 }).then((rows) => {
-      if (alive) setWallet(rows[0] || null);
+    selectRows("user_balances", { user_id: userId }, { sort: "currency", limit: 100 }).then((rows) => {
+      if (alive) setBalances(rows);
     }).catch((error) => {
-      console.error("Failed to load the wallet:", error);
-      if (alive) setWallet(null);
+      console.error("Failed to load user balances:", error);
+      if (alive) setBalances([]);
     }).finally(() => {
       if (alive) setLoading(false);
     });
     return () => { alive = false; };
   }, [userId, reloadKey]);
 
-  return { wallet, balance: wallet?.balance || 0, loading, refresh };
+  return { balances, loading, refresh };
 }
 
 export function useSupportLinks() {

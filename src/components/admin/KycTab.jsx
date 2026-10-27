@@ -43,9 +43,10 @@ export default function KycTab() {
     setBusy(true);
     try {
       await updateRow("profiles", u.id, { kyc_status: "approved", kyc_rejection_reason: "" });
-      // ensure a wallet exists
-      const wallets = await selectRows("wallets", { user_id: u.id }, { limit: 1 });
-      if (wallets.length === 0) await insertRow("wallets", { user_id: u.id, balance: 0 });
+      const balances = await selectRows("user_balances", { user_id: u.id, currency: "USD" }, { limit: 1 });
+      if (balances.length === 0) {
+        await insertRow("user_balances", { user_id: u.id, currency: "USD", balance: 0 });
+      }
       setReviewing(null);
       load();
       refresh();

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { selectRows } from "@/lib/supabaseData";
-import { useCurrentUser, useWallet, formatMoney, formatDate, KYC_META, DEPOSIT_STATUS, TRANSFER_STATUS } from "@/lib/ghb";
+import { useCurrentUser, useUserBalances, formatMoney, formatDate, KYC_META, DEPOSIT_STATUS, TRANSFER_STATUS } from "@/lib/ghb";
 import StatusBadge from "@/components/ghb/StatusBadge";
 import SupportButtons from "@/components/ghb/SupportButtons";
 import CurrencyCalculator from "@/components/ghb/CurrencyCalculator";
@@ -11,7 +11,7 @@ import { ArrowDownToLine, ArrowUpFromLine, Wallet, TrendingUp, ShieldCheck, Load
 
 export default function Home() {
   const { user } = useCurrentUser();
-  const { balance } = useWallet(user?.id);
+  const { balances } = useUserBalances(user?.id);
   const [deposits, setDeposits] = useState([]);
   const [transfers, setTransfers] = useState([]);
   const [rates, setRates] = useState([]);
@@ -34,6 +34,7 @@ export default function Home() {
   }, []);
 
   const kyc = user?.kyc_status || "not_submitted";
+  const usdBalance = Number(balances.find((balance) => balance.currency === "USD")?.balance || 0);
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
@@ -53,9 +54,21 @@ export default function Home() {
           </div>
           <div className="mt-3 flex items-end gap-2">
             <span className="text-4xl sm:text-5xl font-extrabold ghb-gold-text tracking-tight">
-              ${balance.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              {formatMoney(usdBalance, "USD")}
             </span>
-            <span className="text-muted-foreground mb-1.5 text-sm">USD</span>
+          </div>
+          <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-2">
+            {(balances.length ? balances : [{ currency: "USD", balance: 0, reserved_balance: 0 }]).map((balance) => (
+              <div key={balance.currency} className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2">
+                <div className="text-xs font-semibold text-muted-foreground">{balance.currency}</div>
+                <div className="mt-0.5 text-sm font-bold text-foreground">{formatMoney(balance.balance, balance.currency)}</div>
+                {Number(balance.reserved_balance || 0) > 0 && (
+                  <div className="text-[10px] text-amber-300">
+                    Réservé : {formatMoney(balance.reserved_balance, balance.currency)}
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
           <div className="mt-6 grid grid-cols-2 gap-3">
             <Link to="/deposit" className="group flex items-center justify-between px-4 py-3.5 rounded-2xl ghb-emerald-bg text-white font-semibold shadow-lg shadow-emerald-900/30">

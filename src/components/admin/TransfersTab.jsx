@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { selectRows, updateRow } from "@/lib/supabaseData";
+import { selectRows } from "@/lib/supabaseData";
 import { formatMoney, formatDate, TRANSFER_STATUS, signFile } from "@/lib/ghb";
 import StatusBadge from "@/components/ghb/StatusBadge";
 import FileUpload from "@/components/ghb/FileUpload";
@@ -53,7 +53,11 @@ export default function TransfersTab() {
   const reject = async () => {
     setBusy(true);
     try {
-      await updateRow("transfer_requests", rejecting.id, { status: "rejected", rejection_reason: reason });
+      const { error } = await supabase.rpc("reject_transfer", {
+        p_transfer_id: rejecting.id,
+        p_reason: reason,
+      });
+      if (error) throw error;
       setRejecting(null); setReason(""); load();
     } catch (e) { alert(e.message); } finally { setBusy(false); }
   };
@@ -96,7 +100,7 @@ export default function TransfersTab() {
           {viewing && (
             <div className="space-y-3 text-sm">
               <Row label="Montant" value={formatMoney(viewing.amount, viewing.from_currency)} />
-              <Row label="Conversion" value={`${formatMoney(viewing.converted_amount, viewing.to_currency)} (1 USD = ${viewing.rate})`} />
+              <Row label="Conversion" value={`${formatMoney(viewing.converted_amount, viewing.to_currency)} (1 ${viewing.from_currency} = ${viewing.rate} ${viewing.to_currency})`} />
               <Row label="Bénéficiaire" value={`${viewing.beneficiary_name} · ${viewing.beneficiary_country}`} />
               <Row label="Méthode" value={viewing.payout_method} />
               <div className="px-3 py-2 rounded-lg bg-white/[0.03] border border-white/5">
