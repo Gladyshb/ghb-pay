@@ -11,6 +11,15 @@ import { Loader2, Plus, Pencil, Trash2, Coins, RefreshCw, Zap, Lock } from "luci
 
 const empty = { code: "", name: "", symbol: "", flag_emoji: "", type: "fiat", binance_rate: 0, fee_percent: 5, spread_fixed: 0, buy_rate: 0, sell_rate: 0, manual_override: false, active: true };
 
+function getCurrencyCode(value) {
+  const code = String(value ?? "").trim().toUpperCase();
+  if (!code) {
+    alert("Le code de la devise est obligatoire.");
+    return null;
+  }
+  return code;
+}
+
 // Buy = reference + spread (GREEN) · Sell = reference - spread (WHITE)
 function computeRates(ref, feePercent, spreadFixed) {
   const r = Number(ref) || 0;
@@ -39,7 +48,7 @@ export default function CurrenciesTab() {
 
   const load = () => {
     setLoading(true);
-    selectRows("currencies", {}, { sort: "code", limit: 100 })
+    selectRows("currencies", {}, { sort: "code", limit: 1000 })
       .then(setItems)
       .finally(() => setLoading(false));
   };
@@ -47,16 +56,28 @@ export default function CurrenciesTab() {
 
   // Recompute Buy/Sell when fee or spread changes inline.
   const updateSpread = async (c, feeVal, spreadVal) => {
+    const code = getCurrencyCode(c.code);
+    if (!code) return;
     const fee = Math.max(0, Number(feeVal) || 0);
     const spread = Math.max(0, Number(spreadVal) || 0);
     if (fee === Number(c.fee_percent ?? 5) && spread === Number(c.spread_fixed ?? 0)) return;
     const { buy, sell } = computeRates(c.binance_rate, fee, spread);
-    await updateRow("currencies", c.id, { fee_percent: fee, spread_fixed: spread, buy_rate: buy, sell_rate: sell });
+    await updateRow("currencies", c.id, { code, fee_percent: fee, spread_fixed: spread, buy_rate: buy, sell_rate: sell });
     load();
   };
 
-  const toggleActive = async (c) => { await updateRow("currencies", c.id, { active: !c.active }); load(); };
-  const toggleManual = async (c) => { await updateRow("currencies", c.id, { manual_override: !c.manual_override }); load(); };
+  const toggleActive = async (c) => {
+    const code = getCurrencyCode(c.code);
+    if (!code) return;
+    await updateRow("currencies", c.id, { code, active: !c.active });
+    load();
+  };
+  const toggleManual = async (c) => {
+    const code = getCurrencyCode(c.code);
+    if (!code) return;
+    await updateRow("currencies", c.id, { code, manual_override: !c.manual_override });
+    load();
+  };
 
   const sync = async () => {
     setSyncing(true);
@@ -69,6 +90,14 @@ export default function CurrenciesTab() {
   };
 
   const save = async () => {
+    const code = getCurrencyCode(form.code);
+    const name = String(form.name ?? "").trim();
+    if (!code) return;
+    if (!name) {
+      alert("Le nom de la devise est obligatoire.");
+      return;
+    }
+
     setSaving(true);
     try {
       const ref = Number(form.binance_rate) || 0;
@@ -76,12 +105,18 @@ export default function CurrenciesTab() {
       const spread = Number(form.spread_fixed) || 0;
       const { buy, sell } = computeRates(ref, fee, spread);
       const payload = {
-        ...form,
+        code,
+        name,
+        symbol: form.symbol,
+        flag_emoji: form.flag_emoji,
+        type: form.type,
         binance_rate: ref,
         fee_percent: fee,
         spread_fixed: spread,
         buy_rate: buy,
         sell_rate: sell,
+        manual_override: form.manual_override,
+        active: form.active,
       };
       if (editing === "new") await insertRow("currencies", payload);
       else await updateRow("currencies", editing, payload);
@@ -200,7 +235,7 @@ export default function CurrenciesTab() {
           <DialogHeader><DialogTitle>{editing === "new" ? "Nouvelle devise" : "Modifier la devise"}</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
-              <Field label="Code"><Input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })} disabled={editing !== "new"} className="bg-white/5 border-white/10" placeholder="BIF" /></Field>
+              <Field label="Code"><Input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })} disabled={editing !== "new"} required className="bg-white/5 border-white/10" placeholder="BIF" /></Field>
               <Field label="Symbole"><Input value={form.symbol} onChange={(e) => setForm({ ...form, symbol: e.target.value })} className="bg-white/5 border-white/10" placeholder="FBu" /></Field>
             </div>
             <Field label="Nom"><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="bg-white/5 border-white/10" placeholder="Franc burundais" /></Field>

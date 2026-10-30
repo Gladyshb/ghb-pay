@@ -145,7 +145,7 @@ export function useUserBalances(userId) {
       return undefined;
     }
     setLoading(true);
-    selectRows("user_balances", { user_id: userId }, { sort: "currency", limit: 100 }).then((rows) => {
+    selectRows("user_balances", { user_id: userId }, { sort: "currency", limit: 1000 }).then((rows) => {
       if (alive) setBalances(rows);
     }).catch((error) => {
       console.error("Failed to load user balances:", error);

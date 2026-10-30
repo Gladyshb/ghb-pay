@@ -112,7 +112,7 @@ Deno.serve(async (request) => {
       .from("currencies")
       .select("*")
       .order("code")
-      .limit(100);
+      .limit(1000);
     if (currenciesError) throw currenciesError;
 
     const automatic = currencies.filter((item) =>

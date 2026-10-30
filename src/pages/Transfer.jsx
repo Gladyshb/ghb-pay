@@ -20,8 +20,8 @@ export default function Transfer() {
   const [loadingCur, setLoadingCur] = useState(true);
   const [form, setForm] = useState({
     amount: "",
-    from_currency: "USD",
-    to_currency: "USDT",
+    from_currency: "",
+    to_currency: "",
     beneficiary_name: "",
     beneficiary_country: "Burundi",
     payout_method: "Mobile Money",
@@ -33,7 +33,7 @@ export default function Transfer() {
   const [promoCode, setPromoCode] = useState("");
 
   useEffect(() => {
-    selectRows("currencies", { active: true }, { sort: "code", limit: 100 })
+    selectRows("currencies", { active: true }, { sort: "code", limit: 1000 })
       .then(setCurrencies)
       .catch((loadError) => {
         console.error("Failed to load transfer currencies:", loadError);
@@ -41,6 +41,29 @@ export default function Transfer() {
       })
       .finally(() => setLoadingCur(false));
   }, []);
+
+  const sourceCurrencies = balances.filter((wallet) => Number(wallet.balance) > 0);
+
+  useEffect(() => {
+    if (loadingBalances) return;
+    const availableCurrencies = balances.filter((wallet) => Number(wallet.balance) > 0);
+    const selectedCurrency = availableCurrencies.some((wallet) => wallet.currency === form.from_currency)
+      ? form.from_currency
+      : availableCurrencies[0]?.currency || "";
+    if (selectedCurrency !== form.from_currency) {
+      setForm((current) => ({ ...current, from_currency: selectedCurrency }));
+    }
+  }, [balances, form.from_currency, loadingBalances]);
+
+  useEffect(() => {
+    if (loadingCur) return;
+    const selectedCurrency = currencies.some((currency) => currency.code === form.to_currency)
+      ? form.to_currency
+      : currencies[0]?.code || "";
+    if (selectedCurrency !== form.to_currency) {
+      setForm((current) => ({ ...current, to_currency: selectedCurrency }));
+    }
+  }, [currencies, form.to_currency, loadingCur]);
 
   const sourceRate = ["USD", "USDT"].includes(form.from_currency)
     ? 1
@@ -53,15 +76,17 @@ export default function Transfer() {
   const amountNum = Number(form.amount) || 0;
   const converted = rate ? amountNum * rate : 0;
   const insufficient = amountNum > balance;
-  const currencyOptions = [...currencies];
-  for (const code of ["USD", "USDT"]) {
-    if (!currencyOptions.some((currency) => currency.code === code)) {
-      currencyOptions.push({ code, name: code, flag_emoji: "💱", sell_rate: 1 });
-    }
-  }
 
   const submit = async () => {
     setError("");
+    if (!sourceCurrencies.some((wallet) => wallet.currency === form.from_currency)) {
+      setError("Aucun solde disponible pour la devise sélectionnée.");
+      return;
+    }
+    if (!currencies.some((currency) => currency.code === form.to_currency)) {
+      setError("Sélectionnez une devise de réception disponible.");
+      return;
+    }
     if (!form.amount || amountNum <= 0) { setError("Indiquez un montant valide."); return; }
     if (insufficient) { setError("Solde insuffisant pour ce transfert."); return; }
     if (!rate) { setError("Le taux de conversion de la devise sélectionnée n'est pas disponible."); return; }
@@ -140,17 +165,23 @@ export default function Transfer() {
           </div>
           <div className="space-y-2">
             <Label>Depuis</Label>
-            <Select value={form.from_currency} onValueChange={(value) => setForm({ ...form, from_currency: value })}>
-              <SelectTrigger className="bg-white/5 border-white/10 h-11"><SelectValue /></SelectTrigger>
+            <Select
+              value={form.from_currency}
+              onValueChange={(value) => setForm((current) => ({ ...current, from_currency: value }))}
+              disabled={loadingBalances || sourceCurrencies.length === 0}
+            >
+              <SelectTrigger className="bg-white/5 border-white/10 h-11">
+                <SelectValue placeholder={loadingBalances ? "Chargement des soldes..." : "Aucun solde disponible"} />
+              </SelectTrigger>
               <SelectContent>
-                {currencyOptions.map((currency) => (
-                  <SelectItem key={currency.code} value={currency.code}>
-                    {currency.flag_emoji} {currency.code} — {formatMoney(
-                      balances.find((wallet) => wallet.currency === currency.code)?.balance || 0,
-                      currency.code,
-                    )}
-                  </SelectItem>
-                ))}
+                {sourceCurrencies.map((wallet) => {
+                  const currency = currencies.find((item) => item.code === wallet.currency);
+                  return (
+                    <SelectItem key={wallet.currency} value={wallet.currency}>
+                      {currency?.flag_emoji || "💱"} {wallet.currency} — {formatMoney(wallet.balance, wallet.currency)}
+                    </SelectItem>
+                  );
+                })}
               </SelectContent>
             </Select>
           </div>
@@ -159,10 +190,20 @@ export default function Transfer() {
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-2">
             <Label>Devise reçue</Label>
-            <Select value={form.to_currency} onValueChange={(v) => setForm({ ...form, to_currency: v })}>
+            <Select
+              value={form.to_currency}
+              onValueChange={(value) => setForm((current) => ({ ...current, to_currency: value }))}
+              disabled={loadingCur || currencies.length === 0}
+            >
               <SelectTrigger className="bg-white/5 border-white/10 h-11"><SelectValue /></SelectTrigger>
               <SelectContent>
-                {currencyOptions.filter((c) => typeof c.code === "string" && c.code.trim()).map((c) => <SelectItem key={c.code} value={c.code}>{c.flag_emoji} {c.code} — {c.name}</SelectItem>)}
+                {currencies
+                  .filter((currency) => typeof currency.code === "string" && currency.code.trim())
+                  .map((currency) => (
+                    <SelectItem key={currency.code} value={currency.code}>
+                      {currency.flag_emoji} {currency.code} — {currency.name}
+                    </SelectItem>
+                  ))}
               </SelectContent>
             </Select>
           </div>
@@ -224,7 +265,7 @@ export default function Transfer() {
         </div>
 
         {error && <div className="text-sm text-red-400">{error}</div>}
-        <Button onClick={submit} disabled={submitting || insufficient || loadingCur || loadingBalances} className="w-full h-12 ghb-gold-bg text-black font-semibold hover:opacity-90">
+        <Button onClick={submit} disabled={submitting || insufficient || loadingCur || loadingBalances || sourceCurrencies.length === 0 || currencies.length === 0} className="w-full h-12 ghb-gold-bg text-black font-semibold hover:opacity-90">
           {submitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
           Demander le transfert
         </Button>
