@@ -41,3 +41,7 @@ supabase/.temp/
 
 # Stray local clone
 ghb-pay-main/
+.vercel
+.env*
+
+.vercel
