@@ -118,6 +118,7 @@ export default function FileUpload({
   accept = "image/*",
   hint = "",
   draftKey = "",
+  capture,
 }) {
   const inputRef = useRef(null);
   const inputId = useId();
@@ -131,16 +132,19 @@ export default function FileUpload({
   const [error, setError] = useState("");
   const [resuming, setResuming] = useState(false);
 
+  const resolvedCapture = capture ?? (accept.toLowerCase().includes("image") ? "environment" : undefined);
+
   const resetInput = () => {
     if (inputRef.current) inputRef.current.value = "";
   };
 
-  const triggerPicker = (event) => {
-    if (busy) {
-      event.preventDefault();
+  const openPicker = () => {
+    if (busy) return;
+    resetInput();
+    if (typeof inputRef.current?.showPicker === "function") {
+      inputRef.current.showPicker();
       return;
     }
-    resetInput();
     inputRef.current?.click();
   };
 
@@ -255,6 +259,7 @@ export default function FileUpload({
         id={inputId}
         type="file"
         accept={accept}
+        capture={resolvedCapture}
         className="sr-only"
         aria-label={label}
         disabled={busy}
@@ -266,6 +271,10 @@ export default function FileUpload({
           aria-disabled={busy}
           onClick={(event) => {
             if (busy) event.preventDefault();
+            else {
+              event.preventDefault();
+              openPicker();
+            }
           }}
           className={`flex w-full flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-white/15 bg-white/[0.02] px-4 py-6 text-center transition ${
             busy ? "cursor-wait opacity-60" : "cursor-pointer hover:border-[#D4AF37]/50 hover:bg-white/[0.04]"
@@ -320,7 +329,7 @@ export default function FileUpload({
           <button
             type="button"
             disabled={busy}
-            onClick={() => triggerPicker({ preventDefault() {} })}
+            onClick={openPicker}
             className="rounded-lg border border-white/15 px-2.5 py-1.5 text-xs text-foreground hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50"
           >
             Changer
