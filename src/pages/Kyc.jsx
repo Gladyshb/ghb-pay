@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { useDraftForm } from "@/lib/useDraftForm";
 import { useCurrentUser } from "@/lib/ghb";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,13 +14,16 @@ const COUNTRIES = ["Burundi", "RDC", "Kenya", "Rwanda", "Tanzanie", "Ouganda", "
 
 export default function Kyc() {
   const { user, loading, refresh } = useCurrentUser();
-  const [form, setForm] = useState({
+  const profileForm = {
     legal_name: user?.legal_name || "",
     phone: user?.phone || "",
     country: user?.country || "",
     id_document_type: user?.id_document_type || "national_id",
     id_document_uri: user?.id_document_uri || "",
-  });
+  };
+  // Keep unsubmitted KYC input across reloads / mobile background-kills until
+  // the profile update succeeds server-side.
+  const [form, setForm, clearDraft] = useDraftForm("kyc", profileForm, { userId: user?.id });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [submitted, setSubmitted] = useState(false);
@@ -28,13 +32,13 @@ export default function Kyc() {
 
   useEffect(() => {
     if (!user) return;
-    setForm({
-      legal_name: user.legal_name || "",
-      phone: user.phone || "",
-      country: user.country || "",
-      id_document_type: user.id_document_type || "national_id",
-      id_document_uri: user.id_document_uri || "",
+    setForm((current) => {
+      // Only reset from the profile when the local draft is still empty.
+      const touched = current.legal_name || current.phone || current.country || current.id_document_uri;
+      if (submitted || touched) return current;
+      return profileForm;
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   const submit = async () => {
@@ -67,6 +71,7 @@ export default function Kyc() {
         throw new Error("La demande n’a pas été enregistrée. Veuillez réessayer ou contacter l’assistance.");
       }
       setSubmitted(true);
+      clearDraft();
       refresh();
     } catch (e) {
       setError(e.message || "Échec de la soumission");

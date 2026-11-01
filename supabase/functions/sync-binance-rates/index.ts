@@ -56,6 +56,22 @@ async function fallbackRates() {
   }
 }
 
+async function usdtUsdRate() {
+  try {
+    const result = await fetch("https://api.kraken.com/0/public/Ticker?pair=USDTUSD");
+    if (!result.ok) return null;
+    const json = await result.json();
+    const ticker = json?.result?.USDTZUSD;
+    const ask = Number(ticker?.a?.[0]);
+    const bid = Number(ticker?.b?.[0]);
+    if (!Number.isFinite(ask) || !Number.isFinite(bid) || ask <= 0 || bid <= 0) return null;
+    return (ask + bid) / 2;
+  } catch (error) {
+    console.error("USDT/USD reference lookup failed:", error);
+    return null;
+  }
+}
+
 function computeRates(reference: number, feePercent: number, fixedSpread: number) {
   if (fixedSpread > 0) {
     return {
@@ -122,7 +138,10 @@ Deno.serve(async (request) => {
       ? await p2pPrice(fiatMap[automatic[0].code.toUpperCase()] || automatic[0].code.toUpperCase(), "SELL")
       : null;
     const useBinance = Boolean(probe);
-    const externalRates = useBinance ? null : await fallbackRates();
+    const [externalRates, usdPerUsdt] = await Promise.all([
+      useBinance ? Promise.resolve(null) : fallbackRates(),
+      usdtUsdRate(),
+    ]);
     const now = new Date().toISOString();
     const results = [];
 
@@ -130,7 +149,7 @@ Deno.serve(async (request) => {
       const code = currency.code.toUpperCase();
       const fee = Number(currency.fee_percent ?? 5);
       const spread = Number(currency.spread_fixed ?? 0);
-      if (code === "USD" || code === "USDT") {
+      if (code === "USDT") {
         const { error } = await service.from("currencies").update({
           binance_rate: 1,
           buy_rate: 1,
@@ -144,13 +163,16 @@ Deno.serve(async (request) => {
 
       let reference = Number(currency.binance_rate) || 0;
       let source = "manual";
-      if (!currency.manual_override && useBinance) {
+      if (!currency.manual_override && code === "USD") {
+        reference = usdPerUsdt || 0;
+        source = "kraken";
+      } else if (!currency.manual_override && useBinance) {
         const fiat = fiatMap[code] || code;
         const [ask, bid] = await Promise.all([p2pPrice(fiat, "SELL"), p2pPrice(fiat, "BUY")]);
         reference = ask && bid ? (ask + bid) / 2 : ask || bid || reference;
         source = "binance";
-      } else if (!currency.manual_override && externalRates) {
-        reference = Number(externalRates[fiatMap[code] || code]) || reference;
+      } else if (!currency.manual_override && externalRates && usdPerUsdt) {
+        reference = (Number(externalRates[fiatMap[code] || code]) || 0) * usdPerUsdt;
         source = "fallback";
       }
 
@@ -172,7 +194,7 @@ Deno.serve(async (request) => {
 
     return response({
       ok: true,
-      source: useBinance ? "binance" : externalRates ? "fallback" : "manual",
+      source: useBinance ? "binance" : externalRates && usdPerUsdt ? "fallback" : "manual",
       synced: results.length,
       results,
     });

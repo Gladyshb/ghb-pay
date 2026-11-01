@@ -104,7 +104,7 @@ export default function Home() {
       <div className="ghb-card rounded-2xl p-5">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2 text-foreground font-semibold"><TrendingUp className="w-4 h-4 text-[#D4AF37]" /> Taux de change</div>
-          <span className="text-xs text-muted-foreground">Achat / Vente (par USD)</span>
+          <span className="text-xs text-muted-foreground">Achat / Vente (par USDT)</span>
         </div>
         {loading ? (
           <div className="flex justify-center py-6"><Loader2 className="w-5 h-5 text-[#D4AF37] animate-spin" /></div>

@@ -26,8 +26,14 @@ export default function TickerTab() {
   const save = async () => {
     setBusy(true);
     try {
-      if (editing === "new") await insertRow("ticker_messages", form);
-      else await updateRow("ticker_messages", editing, form);
+      const payload = {
+        text: form.text,
+        emoji: form.emoji,
+        order: form.order,
+        active: form.active,
+      };
+      if (editing === "new") await insertRow("ticker_messages", payload);
+      else await updateRow("ticker_messages", editing, payload);
       setEditing(null); load();
     } catch (e) { alert(e.message); } finally { setBusy(false); }
   };
@@ -85,7 +91,7 @@ export default function TickerTab() {
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <Switch checked={!!m.active} onCheckedChange={() => toggle(m)} />
-            <Button size="icon" variant="outline" onClick={() => { setForm({ ...m }); setEditing(m.id); }} className="h-8 w-8 border-white/10 bg-white/5"><Pencil className="w-3.5 h-3.5" /></Button>
+            <Button size="icon" variant="outline" onClick={() => { setForm({ text: m.text ?? "", emoji: m.emoji ?? "⚡", order: m.order ?? 0, active: m.active ?? true }); setEditing(m.id); }} className="h-8 w-8 border-white/10 bg-white/5"><Pencil className="w-3.5 h-3.5" /></Button>
             <Button size="icon" variant="outline" onClick={() => remove(m)} className="h-8 w-8 border-red-500/30 text-red-400 bg-white/5"><Trash2 className="w-3.5 h-3.5" /></Button>
           </div>
         </div>

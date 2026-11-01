@@ -39,10 +39,33 @@ export default function AddressesTab() {
   const openEdit = (a) => { setForm(a); setEditing(a.id); };
 
   const save = async () => {
+    const provider = String(form.provider ?? "").trim();
+    const accountInfo = String(form.account_info ?? "").trim();
+    const currency = String(form.currency ?? "").trim().toUpperCase();
+    if (!provider || !accountInfo || !currency) {
+      alert("La méthode, le compte/adresse et la devise sont obligatoires.");
+      return;
+    }
+
     setSaving(true);
     try {
-      if (editing === "new") await insertRow("deposit_addresses", form);
-      else await updateRow("deposit_addresses", editing, form);
+      const payload = {
+        provider,
+        type: form.type,
+        label: form.label,
+        account_info: accountInfo,
+        account_holder: form.account_holder,
+        currency,
+        country: form.country,
+        network: form.network,
+        instructions: form.instructions,
+        accent_color: form.accent_color,
+        icon: form.icon,
+        card_style: form.card_style,
+        active: form.active,
+      };
+      if (editing === "new") await insertRow("deposit_addresses", payload);
+      else await updateRow("deposit_addresses", editing, payload);
       setEditing(null); load();
     } catch (e) { alert(e.message); } finally { setSaving(false); }
   };
@@ -109,7 +132,7 @@ export default function AddressesTab() {
         <DialogContent className="bg-card border-white/10 max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editing === "new" ? "Nouveau moyen de paiement" : "Modifier le moyen de paiement"}</DialogTitle></DialogHeader>
           <div className="space-y-3">
-            <Field label="Nom de la méthode"><Input value={form.provider} onChange={(e) => setForm({ ...form, provider: e.target.value })} className="bg-white/5 border-white/10" placeholder="Lumicash, Zelle, USDT TRC20…" /></Field>
+            <Field label="Nom de la méthode"><Input value={form.provider} onChange={(e) => setForm({ ...form, provider: e.target.value })} required className="bg-white/5 border-white/10" placeholder="Lumicash, Zelle, USDT TRC20…" /></Field>
             <div className="grid grid-cols-2 gap-3">
               <Field label="Catégorie">
                 <Select value={form.type} onValueChange={(v) => setForm({ ...form, type: v })}>
@@ -117,10 +140,10 @@ export default function AddressesTab() {
                   <SelectContent>{TYPES.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
                 </Select>
               </Field>
-              <Field label="Devise"><Input value={form.currency} onChange={(e) => setForm({ ...form, currency: e.target.value })} className="bg-white/5 border-white/10" /></Field>
+              <Field label="Devise"><Input value={form.currency} onChange={(e) => setForm({ ...form, currency: e.target.value })} required className="bg-white/5 border-white/10" /></Field>
             </div>
             <Field label="Libellé"><Input value={form.label} onChange={(e) => setForm({ ...form, label: e.target.value })} className="bg-white/5 border-white/10" /></Field>
-            <Field label="Compte / Adresse"><Input value={form.account_info} onChange={(e) => setForm({ ...form, account_info: e.target.value })} className="bg-white/5 border-white/10 font-mono" /></Field>
+            <Field label="Compte / Adresse"><Input value={form.account_info} onChange={(e) => setForm({ ...form, account_info: e.target.value })} required className="bg-white/5 border-white/10 font-mono" /></Field>
             <div className="grid grid-cols-2 gap-3">
               <Field label="Bénéficiaire"><Input value={form.account_holder} onChange={(e) => setForm({ ...form, account_holder: e.target.value })} className="bg-white/5 border-white/10" /></Field>
               <Field label="Pays"><Input value={form.country} onChange={(e) => setForm({ ...form, country: e.target.value })} className="bg-white/5 border-white/10" /></Field>

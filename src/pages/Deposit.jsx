@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { insertRow, selectRows } from "@/lib/supabaseData";
 import { supabase } from "@/lib/supabase";
+import { useDraftForm } from "@/lib/useDraftForm";
 import { useCurrentUser, DEPOSIT_STATUS } from "@/lib/ghb";
 import StatusBadge from "@/components/ghb/StatusBadge";
 import FileUpload from "@/components/ghb/FileUpload";
@@ -17,17 +18,29 @@ const TYPE_META = {
   international: { label: "Compte international", icon: Globe },
 };
 
+const INITIAL_DRAFT = {
+  step: 1,
+  selectedId: null,
+  amount: "",
+  currency: "USD",
+  receipt: "",
+  senderRef: "",
+  promoCode: "",
+};
+
 export default function Deposit() {
   const { user } = useCurrentUser();
   const [addresses, setAddresses] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [step, setStep] = useState(1); // 1: choose, 2: proof, 3: done
+  // draft values survive reloads / mobile background-kills (see useDraftForm)
+  const [draft, setDraft, clearDraft] = useDraftForm("deposit", INITIAL_DRAFT, { userId: user?.id });
+  const [step, setStep] = useState(draft.step === 3 ? 1 : draft.step ?? 1);
   const [selected, setSelected] = useState(null);
-  const [amount, setAmount] = useState("");
-  const [currency, setCurrency] = useState("USD");
-  const [receipt, setReceipt] = useState("");
-  const [senderRef, setSenderRef] = useState("");
-  const [promoCode, setPromoCode] = useState("");
+  const [amount, setAmount] = useState(draft.amount || "");
+  const [currency, setCurrency] = useState(draft.currency || "USD");
+  const [receipt, setReceipt] = useState(draft.receipt || "");
+  const [senderRef, setSenderRef] = useState(draft.senderRef || "");
+  const [promoCode, setPromoCode] = useState(draft.promoCode || "");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [createdId, setCreatedId] = useState(null);
@@ -35,9 +48,35 @@ export default function Deposit() {
 
   useEffect(() => {
     selectRows("deposit_addresses", { active: true }, { sort: "type", limit: 100 })
-      .then(setAddresses)
+      .then((rows) => {
+        setAddresses(rows);
+        const stored = rows.find((a) => a.id === draft.selectedId);
+        if (stored) setSelected(stored);
+      })
       .finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const update = (patch) => setDraft((current) => ({ ...current, ...patch }));
+
+  const goStep = (next) => {
+    setStep(next);
+    update({ step: next });
+  };
+
+  const selectAddress = (a) => {
+    setSelected(a);
+    const nextCurrency = a.currency || "USD";
+    setCurrency(nextCurrency);
+    update({ selectedId: a.id, currency: nextCurrency, step: 2 });
+    setStep(2);
+  };
+
+  const onAmount = (value) => { setAmount(value); update({ amount: value }); };
+  const onSenderRef = (value) => { setSenderRef(value); update({ senderRef: value }); };
+  const onPromoCode = (value) => { setPromoCode(value); update({ promoCode: value }); };
+  const onReceipt = (uri) => { setReceipt(uri); update({ receipt: uri }); };
+  const backToChoice = () => { setStep(1); goStep(1); };
 
   const grouped = addresses.reduce((acc, a) => {
     (acc[a.type] = acc[a.type] || []).push(a);
@@ -86,6 +125,7 @@ export default function Deposit() {
         }
       }
       setCreatedId(created.id);
+      clearDraft();
       setStep(3);
     } catch (e) {
       setError(e.message || "Échec de la demande");
@@ -126,7 +166,7 @@ export default function Deposit() {
                       const accent = a.accent_color || "#D4AF37";
                       const hl = a.card_style === "highlighted";
                       return (
-                        <button key={a.id} onClick={() => { setSelected(a); setCurrency(a.currency || "USD"); setStep(2); }}
+                        <button key={a.id} onClick={() => selectAddress(a)}
                           className="w-full text-left px-3.5 py-3 rounded-xl bg-white/[0.03] hover:bg-white/[0.06] transition border"
                           style={{ borderColor: hl ? accent + "66" : "rgba(255,255,255,0.06)" }}>
                           <div className="flex items-center gap-3">
@@ -153,7 +193,7 @@ export default function Deposit() {
 
       {step === 2 && selected && (
         <div className="space-y-5">
-          <button onClick={() => setStep(1)} className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
+          <button onClick={backToChoice} className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
             <ChevronLeft className="w-4 h-4" /> Retour
           </button>
           <div>
@@ -179,7 +219,7 @@ export default function Deposit() {
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label>Montant déposé</Label>
-                <Input type="number" min="0" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)}
+                <Input type="number" min="0" step="0.01" value={amount} onChange={(e) => onAmount(e.target.value)}
                   placeholder="0.00" className="bg-white/5 border-white/10 h-11" />
               </div>
               <div className="space-y-2">
@@ -191,15 +231,15 @@ export default function Deposit() {
             </div>
             <div className="space-y-2">
               <Label>Référence / ID transaction (optionnel)</Label>
-              <Input value={senderRef} onChange={(e) => setSenderRef(e.target.value)}
+              <Input value={senderRef} onChange={(e) => onSenderRef(e.target.value)}
                 placeholder="Référence visible sur le paiement" className="bg-white/5 border-white/10 h-11" />
             </div>
             <div className="space-y-2">
               <Label className="flex items-center gap-1.5"><Ticket className="w-3.5 h-3.5 text-[#D4AF37]" /> Code Promo / Parrainage (optionnel)</Label>
-              <Input value={promoCode} onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+              <Input value={promoCode} onChange={(e) => onPromoCode(e.target.value.toUpperCase())}
                 placeholder="Code de votre parrain" className="bg-white/5 border-white/10 h-11 uppercase tracking-widest font-medium" />
             </div>
-            <FileUpload value={receipt} onChange={(uri) => setReceipt(uri)}
+            <FileUpload value={receipt} onChange={onReceipt}
               label="Capture d'écran du reçu"
               accept="image/*,application/pdf"
               hint="Téléversez la preuve de votre transfert" />

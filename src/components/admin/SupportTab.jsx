@@ -30,11 +30,23 @@ export default function SupportTab() {
   };
   useEffect(load, []);
 
+  const openEdit = (s) => {
+    setForm({ type: s.type ?? "whatsapp_direct", label: s.label ?? "", url: s.url ?? "", phone: s.phone ?? "", active: s.active ?? true });
+    setEditing(s.id);
+  };
+
   const save = async () => {
     setSaving(true);
     try {
-      if (editing === "new") await insertRow("support_links", form);
-      else await updateRow("support_links", editing, form);
+      const payload = {
+        type: form.type,
+        label: form.label,
+        url: form.url,
+        phone: form.phone,
+        active: form.active,
+      };
+      if (editing === "new") await insertRow("support_links", payload);
+      else await updateRow("support_links", editing, payload);
       setEditing(null); load();
     } catch (e) { alert(e.message); } finally { setSaving(false); }
   };
@@ -66,7 +78,7 @@ export default function SupportTab() {
                 </div>
               </div>
               <div className="flex items-center gap-1.5 shrink-0">
-                <Button size="sm" variant="ghost" onClick={() => { setForm(s); setEditing(s.id); }} className="text-muted-foreground hover:text-foreground"><Pencil className="w-4 h-4" /></Button>
+                <Button size="sm" variant="ghost" onClick={() => openEdit(s)} className="text-muted-foreground hover:text-foreground"><Pencil className="w-4 h-4" /></Button>
                 <Button size="sm" variant="ghost" onClick={() => remove(s)} className="text-red-400"><Trash2 className="w-4 h-4" /></Button>
               </div>
             </div>

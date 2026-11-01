@@ -3,18 +3,17 @@ import { ArrowLeftRight, Calculator, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-// rate = units of this currency per 1 USD (as configured in Admin Panel).
-// Convert through USD: amount_A / buy_rate_A = USD, then USD * sell_rate_B = amount_B.
+// Rates are units of each currency per 1 USDT; USDT is the conversion base.
 function rateOf(currencies, code) {
   if (!code) return 0;
-  if (code === "USD") return 1;
+  if (code === "USDT") return 1;
   const c = currencies.find((x) => x.code === code);
   const r = c?.buy_rate || c?.sell_rate || 0;
   return r > 0 ? r : 0;
 }
 function sellRateOf(currencies, code) {
   if (!code) return 0;
-  if (code === "USD") return 1;
+  if (code === "USDT") return 1;
   const c = currencies.find((x) => x.code === code);
   const r = c?.sell_rate || c?.buy_rate || 0;
   return r > 0 ? r : 0;

@@ -38,3 +38,6 @@ dist-ssr
 node_modules/
 dist/
 supabase/.temp/
+
+# Stray local clone
+ghb-pay-main/

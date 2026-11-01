@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { selectRows } from "@/lib/supabaseData";
 import { supabase } from "@/lib/supabase";
+import { useDraftForm } from "@/lib/useDraftForm";
 import { useCurrentUser, useUserBalances, formatMoney } from "@/lib/ghb";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,24 +14,29 @@ import { ArrowUpFromLine, Loader2, Check, MessageSquare, AlertTriangle, Ticket }
 const PAYOUT_METHODS = ["Mobile Money", "Virement bancaire", "Crypto / USDT", "Zelle", "Cash pickup", "Autre"];
 const COUNTRIES = ["Burundi", "RDC", "Kenya", "Rwanda", "Tanzanie", "Ouganda", "Zambie", "Côte d'Ivoire", "Sénégal", "Maroc", "Algérie", "Émirats Arabes Unis", "Autre"];
 
+const EMPTY_FORM = {
+  amount: "",
+  from_currency: "",
+  to_currency: "",
+  beneficiary_name: "",
+  beneficiary_country: "Burundi",
+  payout_method: "Mobile Money",
+  payout_details: "",
+};
+
 export default function Transfer() {
   const { user } = useCurrentUser();
   const { balances, loading: loadingBalances } = useUserBalances(user?.id);
   const [currencies, setCurrencies] = useState([]);
   const [loadingCur, setLoadingCur] = useState(true);
-  const [form, setForm] = useState({
-    amount: "",
-    from_currency: "",
-    to_currency: "",
-    beneficiary_name: "",
-    beneficiary_country: "Burundi",
-    payout_method: "Mobile Money",
-    payout_details: "",
-  });
+  // draft form + promo code survive reloads / mobile background-kills
+  const [form, setForm, clearDraft] = useDraftForm("transfer", EMPTY_FORM, { userId: user?.id });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [done, setDone] = useState(false);
-  const [promoCode, setPromoCode] = useState("");
+  const [draftPromo, setDraftPromo] = useDraftForm("transfer_promo", { promoCode: "" }, { userId: user?.id });
+  const [promoCode, setPromoCode] = useState(draftPromo.promoCode || "");
+
 
   useEffect(() => {
     selectRows("currencies", { active: true }, { sort: "code", limit: 1000 })
@@ -43,6 +49,12 @@ export default function Transfer() {
   }, []);
 
   const sourceCurrencies = balances.filter((wallet) => Number(wallet.balance) > 0);
+
+  const onFormChange = (patch) => setForm((current) => ({ ...current, ...patch }));
+  const onPromoChange = (value) => {
+    setPromoCode(value);
+    setDraftPromo({ promoCode: value });
+  };
 
   useEffect(() => {
     if (loadingBalances) return;
@@ -65,10 +77,10 @@ export default function Transfer() {
     }
   }, [currencies, form.to_currency, loadingCur]);
 
-  const sourceRate = ["USD", "USDT"].includes(form.from_currency)
+  const sourceRate = form.from_currency === "USDT"
     ? 1
     : Number(currencies.find((currency) => currency.code === form.from_currency)?.sell_rate || 0);
-  const destinationRate = ["USD", "USDT"].includes(form.to_currency)
+  const destinationRate = form.to_currency === "USDT"
     ? 1
     : Number(currencies.find((currency) => currency.code === form.to_currency)?.sell_rate || 0);
   const rate = sourceRate > 0 && destinationRate > 0 ? destinationRate / sourceRate : 0;
@@ -112,6 +124,8 @@ export default function Transfer() {
           console.error("Referral code could not be applied:", referralError || referralResult?.reason);
         }
       }
+      clearDraft();
+      setPromoCode("");
       setDone(true);
     } catch (e) {
       setError(e.message || "Échec de la demande");
@@ -160,7 +174,7 @@ export default function Transfer() {
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-2">
             <Label>Montant à envoyer</Label>
-            <Input type="number" min="0" step="0.01" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })}
+            <Input type="number" min="0" step="0.01" value={form.amount} onChange={(e) => onFormChange({ amount: e.target.value })}
               placeholder="0.00" className="bg-white/5 border-white/10 h-11" />
           </div>
           <div className="space-y-2">
@@ -227,12 +241,12 @@ export default function Transfer() {
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-2">
             <Label>Nom du bénéficiaire</Label>
-            <Input value={form.beneficiary_name} onChange={(e) => setForm({ ...form, beneficiary_name: e.target.value })}
+            <Input value={form.beneficiary_name} onChange={(e) => onFormChange({ beneficiary_name: e.target.value })}
               placeholder="Nom complet" className="bg-white/5 border-white/10 h-11" />
           </div>
           <div className="space-y-2">
             <Label>Pays destinataire</Label>
-            <Select value={form.beneficiary_country} onValueChange={(v) => setForm({ ...form, beneficiary_country: v })}>
+            <Select value={form.beneficiary_country} onValueChange={(v) => onFormChange({ beneficiary_country: v })}>
               <SelectTrigger className="bg-white/5 border-white/10 h-11"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {COUNTRIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
@@ -243,7 +257,7 @@ export default function Transfer() {
 
         <div className="space-y-2">
           <Label>Méthode de paiement</Label>
-          <Select value={form.payout_method} onValueChange={(v) => setForm({ ...form, payout_method: v })}>
+          <Select value={form.payout_method} onValueChange={(v) => onFormChange({ payout_method: v })}>
             <SelectTrigger className="bg-white/5 border-white/10 h-11"><SelectValue /></SelectTrigger>
             <SelectContent>
               {PAYOUT_METHODS.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
@@ -253,14 +267,14 @@ export default function Transfer() {
 
         <div className="space-y-2">
           <Label>Coordonnées de paiement</Label>
-          <Textarea value={form.payout_details} onChange={(e) => setForm({ ...form, payout_details: e.target.value })}
+          <Textarea value={form.payout_details} onChange={(e) => onFormChange({ payout_details: e.target.value })}
             placeholder="Numéro Mobile Money, IBAN, adresse wallet USDT, etc." rows={3}
             className="bg-white/5 border-white/10 resize-none" />
         </div>
 
         <div className="space-y-2">
           <Label className="flex items-center gap-1.5"><Ticket className="w-3.5 h-3.5 text-[#D4AF37]" /> Code Promo / Parrainage (optionnel)</Label>
-          <Input value={promoCode} onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+          <Input value={promoCode} onChange={(e) => onPromoChange(e.target.value.toUpperCase())}
             placeholder="Code de votre parrain" className="bg-white/5 border-white/10 h-11 uppercase tracking-widest font-medium" />
         </div>
 

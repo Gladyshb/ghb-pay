@@ -161,7 +161,7 @@ export default function CurrenciesTab() {
 
       <div className="space-y-2.5">
         {items.map((c) => {
-          const isBase = c.code === "USD" || c.code === "USDT";
+          const isBase = c.code === "USDT";
           const fee = Number(c.fee_percent ?? 5);
           const spread = Number(c.spread_fixed ?? 0);
           return (
@@ -248,7 +248,7 @@ export default function CurrenciesTab() {
                 </Select>
               </Field>
             </div>
-            <Field label="Taux de référence (par USD) — ex: 6000 pour le BIF"><Input type="number" min="0" step="0.0001" value={form.binance_rate} onChange={(e) => setForm({ ...form, binance_rate: Number(e.target.value) })} className="bg-white/5 border-white/10" /></Field>
+            <Field label="Taux de référence (par USDT) — ex: 6000 pour le BIF"><Input type="number" min="0" step="0.0001" value={form.binance_rate} onChange={(e) => setForm({ ...form, binance_rate: Number(e.target.value) })} className="bg-white/5 border-white/10" /></Field>
             <div className="grid grid-cols-2 gap-3">
               <Field label="Spread fixe (ex: 150)"><Input type="number" min="0" step="1" value={form.spread_fixed} onChange={(e) => setForm({ ...form, spread_fixed: Number(e.target.value) })} className="bg-white/5 border-white/10" /></Field>
               <Field label="Fee % (si spread = 0)"><Input type="number" min="0" step="0.1" value={form.fee_percent} onChange={(e) => setForm({ ...form, fee_percent: Number(e.target.value) })} className="bg-white/5 border-white/10" /></Field>

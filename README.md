@@ -11,6 +11,8 @@ GHB Pay is a React/Vite application backed by Supabase Auth, Postgres, Storage, 
 5. Deploy the Edge Functions with `supabase functions deploy sync-binance-rates` and `supabase functions deploy admin-users`.
 6. Run the frontend with `npm run dev`.
 
+Exchange rates in `currencies` are expressed as units of the listed currency per USDT. Binance P2P supplies direct USDT quotes; the market-rate fallback converts USD-based FX quotes using the Kraken USDT/USD rate. USDT is the conversion base (rate 1), while USD has its own USDT-based rate.
+
 The application requires these Vite variables:
 
 - `VITE_SUPABASE_URL`

@@ -25,13 +25,25 @@ export default function AnnouncementsTab() {
   useEffect(load, []);
 
   const openNew = () => { setForm(empty); setEditing("new"); };
-  const openEdit = (a) => { setForm({ ...a }); setEditing(a.id); };
+  const openEdit = (a) => {
+    setForm({ title: a.title ?? "", body: a.body ?? "", emoji: a.emoji ?? "📢", cta_text: a.cta_text ?? "", cta_url: a.cta_url ?? "", order: a.order ?? 0, active: a.active ?? true });
+    setEditing(a.id);
+  };
 
   const save = async () => {
     setBusy(true);
     try {
-      if (editing === "new") await insertRow("announcements", form);
-      else await updateRow("announcements", editing, form);
+      const payload = {
+        title: form.title,
+        body: form.body,
+        emoji: form.emoji,
+        cta_text: form.cta_text,
+        cta_url: form.cta_url,
+        order: form.order,
+        active: form.active,
+      };
+      if (editing === "new") await insertRow("announcements", payload);
+      else await updateRow("announcements", editing, payload);
       setEditing(null); load();
     } catch (e) { alert(e.message); } finally { setBusy(false); }
   };
