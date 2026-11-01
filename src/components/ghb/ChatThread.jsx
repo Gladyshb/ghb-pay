@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { insertRow, selectRows } from "@/lib/supabaseData";
 import { supabase } from "@/lib/supabase";
-import { Paperclip, Send, Loader2, Download, FileText } from "lucide-react";
+import { Paperclip, Send, Loader2, Download, FileText, Camera, FolderOpen } from "lucide-react";
 import { uploadPrivate, signFile, formatDate } from "@/lib/ghb";
 
 /** @typedef {Record<string, any> & {
@@ -25,6 +25,7 @@ export default function ChatThread({ threadType, threadId, participantUserId, vi
   const [previews, setPreviews] = useState({});
   const scrollRef = useRef(null);
   const fileInputRef = useRef(null);
+  const cameraInputRef = useRef(null);
 
   const load = useCallback(async () => {
     if (!threadId) return;
@@ -36,7 +37,6 @@ export default function ChatThread({ threadType, threadId, participantUserId, vi
       );
       setMessages(items);
       setLoadError("");
-      // sign attachment previews
       for (const m of items) {
         if (m.attachment_uri) {
           signFile(m.attachment_uri).then((url) =>
@@ -54,7 +54,6 @@ export default function ChatThread({ threadType, threadId, participantUserId, vi
 
   useEffect(() => { load(); }, [load]);
 
-  // realtime subscription
   useEffect(() => {
     if (!threadId) return;
     const channel = supabase.channel(`chat-${threadType}-${threadId}`)
@@ -86,17 +85,44 @@ export default function ChatThread({ threadType, threadId, participantUserId, vi
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages]);
 
+  const normalizeAttachment = async (file) => {
+    if (!file) return null;
+    if (file.size > 10 * 1024 * 1024) {
+      throw new Error("Le fichier est trop volumineux. Choisissez un document de moins de 10 Mo.");
+    }
+    return file;
+  };
+
   const handleAttach = async (file) => {
-    if (!file) return;
+    const validFile = await normalizeAttachment(file);
+    if (!validFile) return;
     setSending(true);
     try {
-      const uri = await uploadPrivate(file);
-      setAttachment({ uri, name: file.name });
+      const uri = await uploadPrivate(validFile);
+      setAttachment({ uri, name: validFile.name });
     } catch (e) {
       alert(e.message || "Échec du téléversement");
     } finally {
       setSending(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      if (cameraInputRef.current) cameraInputRef.current.value = "";
     }
+  };
+
+  const openGallery = () => {
+    if (typeof fileInputRef.current?.showPicker === "function") {
+      fileInputRef.current.showPicker();
+      return;
+    }
+    fileInputRef.current?.click();
+  };
+
+  const openCamera = () => {
+    if (typeof cameraInputRef.current?.showPicker === "function") {
+      cameraInputRef.current.showPicker();
+      return;
+    }
+    cameraInputRef.current?.click();
   };
 
   const send = async () => {
@@ -175,11 +201,33 @@ export default function ChatThread({ threadType, threadId, participantUserId, vi
       )}
 
       <div className="p-3 border-t border-white/10 flex items-center gap-2 bg-background/60">
-        <input ref={fileInputRef} type="file" className="hidden" onChange={(e) => handleAttach(e.target.files?.[0])} />
-        <button onClick={() => fileInputRef.current?.click()} disabled={sending}
-          className="p-2.5 rounded-xl border border-white/10 text-muted-foreground hover:bg-white/5 disabled:opacity-50">
-          <Paperclip className="w-4 h-4" />
-        </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*,application/pdf"
+          className="hidden"
+          onChange={(e) => handleAttach(e.target.files?.[0])}
+        />
+        <input
+          ref={cameraInputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          className="hidden"
+          onChange={(e) => handleAttach(e.target.files?.[0])}
+        />
+
+        <div className="flex items-center gap-2">
+          <button onClick={openCamera} disabled={sending}
+            className="p-2.5 rounded-xl border border-[#D4AF37]/40 bg-[#D4AF37]/10 text-[#F6D77C] hover:bg-[#D4AF37]/20 disabled:opacity-50">
+            <Camera className="w-4 h-4" />
+          </button>
+          <button onClick={openGallery} disabled={sending}
+            className="p-2.5 rounded-xl border border-white/10 text-muted-foreground hover:bg-white/5 disabled:opacity-50">
+            <FolderOpen className="w-4 h-4" />
+          </button>
+        </div>
+
         <input
           value={text}
           onChange={(e) => setText(e.target.value)}
