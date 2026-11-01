@@ -239,7 +239,7 @@ export default function Deposit() {
               <Input value={promoCode} onChange={(e) => onPromoCode(e.target.value.toUpperCase())}
                 placeholder="Code de votre parrain" className="bg-white/5 border-white/10 h-11 uppercase tracking-widest font-medium" />
             </div>
-            <FileUpload value={receipt} onChange={onReceipt}
+            <FileUpload value={receipt} onChange={onReceipt} draftKey="deposit_receipt"
               label="Capture d'écran du reçu"
               accept="image/*,application/pdf"
               hint="Téléversez la preuve de votre transfert" />

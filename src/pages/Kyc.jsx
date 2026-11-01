@@ -160,6 +160,7 @@ export default function Kyc() {
             </Select>
           </div>
           <FileUpload
+            draftKey="kyc_document"
             value={form.id_document_uri}
             onChange={(uri) => setForm({ ...form, id_document_uri: uri })}
             label="Photo / scan de la pièce d'identité"

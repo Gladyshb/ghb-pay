@@ -1,14 +1,66 @@
-import { useId, useRef, useState } from "react";
-import { UploadCloud, X, FileCheck2, Loader2 } from "lucide-react";
+import { useEffect, useId, useRef, useState } from "react";
+import { UploadCloud, X, FileCheck2, Loader2, RefreshCw } from "lucide-react";
 import { uploadPrivate } from "@/lib/ghb";
+import { savePendingFile, getPendingFile, clearPendingFile } from "@/lib/pendingFile";
 
-export default function FileUpload({ value, onChange, label = "Téléverser un fichier", accept = "image/*", hint = "" }) {
+/**
+ * File picker that survives a page reload: the selected file is mirrored in
+ * IndexedDB (via `pendingFile.js`) and its upload resumes automatically when
+ * the page comes back — even if the platform killed the previous JS context
+ * while the transfer was in flight.
+ *
+ * Pass `draftKey` (a unique slot name, e.g. "deposit_receipt") to enable the
+ * resume behaviour. Without it, upload behaves like a plain uploader.
+ */
+export default function FileUpload({
+  value,
+  onChange,
+  label = "Téléverser un fichier",
+  accept = "image/*",
+  hint = "",
+  draftKey = "",
+}) {
   const inputRef = useRef(null);
   const inputId = useId();
   const lastHandledFileRef = useRef("");
+  const changeRef = useRef(onChange);
+  changeRef.current = onChange;
+  const valueRef = useRef(value);
+  valueRef.current = value;
   const [busy, setBusy] = useState(false);
   const [name, setName] = useState("");
   const [error, setError] = useState("");
+  const [resuming, setResuming] = useState(false);
+
+  const runUpload = async (file, { fromPending = false } = {}) => {
+    const fileKey = `${file.name}-${file.size}-${file.lastModified}`;
+    if (valueRef.current || busy) return;
+    setError("");
+    setBusy(true);
+    setName(file.name);
+    if (fromPending) setResuming(true);
+    try {
+      const uri = await uploadPrivate(file);
+      if (valueRef.current) {
+        // A restored draft URI arrived in the meantime — drop this duplicate.
+      } else {
+        changeRef.current(uri, file.name);
+      }
+      if (draftKey) await clearPendingFile(draftKey);
+      lastHandledFileRef.current = fileKey;
+      setError("");
+    } catch (uploadError) {
+      if (valueRef.current) {
+        if (draftKey) await clearPendingFile(draftKey);
+        setError("");
+      } else {
+        setError(uploadError instanceof Error ? uploadError.message : "Échec du téléversement.");
+      }
+    } finally {
+      setBusy(false);
+      setResuming(false);
+    }
+  };
 
   const handleFile = async (event) => {
     const input = event.currentTarget;
@@ -37,23 +89,52 @@ export default function FileUpload({ value, onChange, label = "Téléverser un f
     setError("");
     setBusy(true);
     setName(file.name);
+    input.value = "";
 
     try {
+      if (draftKey) await savePendingFile(draftKey, file);
       const uri = await uploadPrivate(file);
-      onChange(uri, file.name);
+      if (valueRef.current) {
+        // A restored draft URI arrived in the meantime — drop this duplicate.
+      } else {
+        changeRef.current(uri, file.name);
+      }
+      if (draftKey) await clearPendingFile(draftKey);
       setError("");
     } catch (uploadError) {
-      setError(uploadError instanceof Error ? uploadError.message : "Échec du téléversement.");
+      if (valueRef.current) {
+        if (draftKey) await clearPendingFile(draftKey);
+        setError("");
+      } else {
+        setError(uploadError instanceof Error ? uploadError.message : "Échec du téléversement.");
+      }
     } finally {
       setBusy(false);
-      input.value = "";
-      setTimeout(() => {
-        if (lastHandledFileRef.current === fileKey) {
-          lastHandledFileRef.current = "";
-        }
-      }, 0);
     }
   };
+
+  // Resume any interrupted upload from a previous page load.
+  useEffect(() => {
+    if (!draftKey) return undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        if (valueRef.current) {
+          await clearPendingFile(draftKey);
+          return;
+        }
+        const pending = await getPendingFile(draftKey);
+        if (cancelled || !pending || busy || valueRef.current) return;
+        await runUpload(pending, { fromPending: true });
+      } catch {
+        // IndexedDB unavailable — keep the plain path.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftKey]);
 
   return (
     <div>
@@ -86,13 +167,22 @@ export default function FileUpload({ value, onChange, label = "Téléverser un f
           )}
           <span className="text-sm font-medium text-foreground">
             {busy
-              ? `Téléversement de ${name}…`
+              ? resuming
+                ? `Reprise du téléversement de ${name}…`
+                : `Téléversement de ${name}…`
               : name
                 ? `Touchez pour réessayer : ${name}`
                 : "Touchez pour choisir un fichier"}
           </span>
           {hint && <span className="text-xs text-muted-foreground">{hint}</span>}
-          {busy && <span className="text-xs text-muted-foreground">Gardez cette page ouverte.</span>}
+          {busy && !resuming && draftKey && (
+            <span className="text-xs text-muted-foreground">
+              <RefreshCw className="inline h-3 w-3" /> Vous pouvez quitter : l’envoi reprendra.
+            </span>
+          )}
+          {busy && !resuming && !draftKey && (
+            <span className="text-xs text-muted-foreground">Gardez cette page ouverte.</span>
+          )}
         </label>
       ) : (
         <div className="flex items-center gap-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-3">
@@ -109,11 +199,12 @@ export default function FileUpload({ value, onChange, label = "Téléverser un f
               setName("");
               setError("");
               lastHandledFileRef.current = "";
+              if (draftKey) clearPendingFile(draftKey);
             }}
             className="rounded-lg p-1.5 text-muted-foreground hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
             aria-label="Supprimer le fichier sélectionné"
           >
-            <X className="h-4 w-4" />
+            <X className="h-4 h-4" />
           </button>
           <button
             type="button"
