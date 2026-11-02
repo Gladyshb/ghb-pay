@@ -182,6 +182,10 @@ export default function FileUpload({
     setBusy(true);
     setError("");
     try {
+      // Persist the selected file before decoding or resizing it. Mobile
+      // browsers may reload the page while processing large gallery images.
+      if (draftKey) await savePendingFile(draftKey, file);
+
       const normalizedFile = await normalizeFile(file);
       const fileKey = `${normalizedFile.name}-${normalizedFile.size}-${normalizedFile.lastModified}`;
 
@@ -193,7 +197,6 @@ export default function FileUpload({
 
       lastHandledFileRef.current = fileKey;
       setName(normalizedFile.name);
-      if (draftKey) await savePendingFile(draftKey, normalizedFile);
 
       const uri = await uploadPrivate(normalizedFile);
       changeRef.current(uri, normalizedFile.name);
@@ -235,8 +238,9 @@ export default function FileUpload({
         const uri = await uploadPrivate(await normalizeFile(pending));
         if (!valueRef.current) changeRef.current(uri, pending.name);
         if (draftKey) await clearPendingFile(draftKey);
-      } catch {
-        // no-op
+        setError("");
+      } catch (resumeError) {
+        setError(resumeError instanceof Error ? resumeError.message : "La reprise du téléversement a échoué. Réessayez.");
       } finally {
         if (!cancelled) {
           setBusy(false);
