@@ -1,9 +1,10 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { UploadCloud, X, FileCheck2, Loader2, RefreshCw, Camera, FolderOpen } from "lucide-react";
+import { X, FileCheck2, Loader2, RefreshCw, Camera, FolderOpen } from "lucide-react";
 import { uploadPrivate } from "@/lib/ghb";
 import { savePendingFile, getPendingFile, clearPendingFile } from "@/lib/pendingFile";
 
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
+const MAX_IMAGE_WIDTH = 1600;
 const ALLOWED_MIME_TYPES = new Set([
   "image/jpeg",
   "image/png",
@@ -26,52 +27,64 @@ function inferMimeType(file) {
 }
 
 async function convertToJpeg(file) {
-  if (typeof window === "undefined" || !window.Image || !document?.createElement) {
-    return file;
+  if (typeof document === "undefined" || !document.createElement) {
+    throw new Error("La conversion d’image n’est pas disponible sur cet appareil.");
   }
 
-  const objectUrl = URL.createObjectURL(file);
+  let source;
+  let objectUrl;
   try {
-    const image = new Image();
-    image.decoding = "async";
-    await new Promise((resolve, reject) => {
-      image.onload = resolve;
-      image.onerror = reject;
-      image.src = objectUrl;
-    });
+    if (typeof createImageBitmap === "function") {
+      source = await createImageBitmap(file, {
+        resizeWidth: MAX_IMAGE_WIDTH,
+        resizeQuality: "high",
+      });
+    } else if (typeof window !== "undefined" && window.Image) {
+      objectUrl = URL.createObjectURL(file);
+      source = new Image();
+      source.decoding = "async";
+      await new Promise((resolve, reject) => {
+        source.onload = resolve;
+        source.onerror = reject;
+        source.src = objectUrl;
+      });
+    } else {
+      throw new Error("Le navigateur ne peut pas traiter cette image.");
+    }
 
     const canvas = document.createElement("canvas");
-    const maxSide = 1600;
-    const scale = Math.min(1, maxSide / Math.max(image.width, image.height));
-    canvas.width = Math.max(1, Math.round(image.width * scale));
-    canvas.height = Math.max(1, Math.round(image.height * scale));
+    const scale = Math.min(1, MAX_IMAGE_WIDTH / source.width);
+    canvas.width = Math.max(1, Math.round(source.width * scale));
+    canvas.height = Math.max(1, Math.round(source.height * scale));
 
     const context = canvas.getContext("2d");
     if (!context) {
-      throw new Error("Canvas unavailable on this device.");
+      throw new Error("La conversion d’image n’est pas disponible sur cet appareil.");
     }
 
     context.fillStyle = "#ffffff";
     context.fillRect(0, 0, canvas.width, canvas.height);
-    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    context.drawImage(source, 0, 0, canvas.width, canvas.height);
 
     const blob = await new Promise((resolve, reject) => {
       canvas.toBlob((result) => {
         if (!result) {
-          reject(new Error("Impossible de convertir l’image sélectionnée."));
+          reject(new Error("Impossible de réduire cette image. Choisissez un JPG ou PNG moins volumineux."));
           return;
         }
         resolve(result);
-      }, "image/jpeg", 0.9);
+      }, "image/jpeg", 0.88);
     });
 
     const baseName = (file.name || "file").replace(/\.[^./]+$/, "");
-    return new File([blob], `${baseName}.jpg`, {
+    const convertedFile = new File([blob], `${baseName}.jpg`, {
       type: "image/jpeg",
       lastModified: Date.now(),
     });
+    return convertedFile;
   } finally {
-    URL.revokeObjectURL(objectUrl);
+    if (typeof source?.close === "function") source.close();
+    if (objectUrl) URL.revokeObjectURL(objectUrl);
   }
 }
 
@@ -83,20 +96,29 @@ async function normalizeFile(file) {
     throw new Error("Type de fichier non pris en charge. Utilisez JPG, PNG, WEBP ou PDF.");
   }
 
-  if (file.size > MAX_FILE_SIZE_BYTES) {
-    throw new Error("Le fichier est trop volumineux. Sélectionnez une image ou un PDF de moins de 10 Mo.");
-  }
-
-  if (mimeType === "image/heic" || mimeType === "image/heif" || /\.(heic|heif)$/i.test(extension)) {
-    try {
-      return await convertToJpeg(file);
-    } catch {
-      throw new Error("Le format HEIC/HEIF n’est pas compatible sur ce téléphone. Convertissez l’image en JPG/PNG puis réessayez.");
-    }
-  }
-
   if (mimeType && !ALLOWED_MIME_TYPES.has(mimeType)) {
     throw new Error("Format de fichier non pris en charge. Veuillez choisir une image JPG/PNG/WEBP ou un PDF.");
+  }
+
+  const isHeic = mimeType === "image/heic" || mimeType === "image/heif" || /\.(heic|heif)$/i.test(extension);
+  if (isHeic || mimeType?.startsWith("image/")) {
+    let convertedFile;
+    try {
+      convertedFile = await convertToJpeg(file);
+    } catch {
+      if (isHeic) {
+        throw new Error("Le téléphone n’a pas assez de mémoire pour convertir cette photo HEIC. Choisissez un JPG/PNG dans la galerie ou réduisez la photo puis réessayez.");
+      }
+      throw new Error("Le téléphone n’a pas assez de mémoire pour traiter cette photo. Choisissez une image moins volumineuse puis réessayez.");
+    }
+    if (convertedFile.size > MAX_FILE_SIZE_BYTES) {
+      throw new Error("L’image reste trop volumineuse après réduction. Essayez une photo moins détaillée.");
+    }
+    return convertedFile;
+  }
+
+  if (file.size > MAX_FILE_SIZE_BYTES) {
+    throw new Error("Le fichier est trop volumineux. Sélectionnez une image ou un PDF de moins de 10 Mo.");
   }
 
   return file;
@@ -157,6 +179,8 @@ export default function FileUpload({
       return;
     }
 
+    setBusy(true);
+    setError("");
     try {
       const normalizedFile = await normalizeFile(file);
       const fileKey = `${normalizedFile.name}-${normalizedFile.size}-${normalizedFile.lastModified}`;
@@ -168,22 +192,15 @@ export default function FileUpload({
       }
 
       lastHandledFileRef.current = fileKey;
-      setError("");
-      setBusy(true);
       setName(normalizedFile.name);
       if (draftKey) await savePendingFile(draftKey, normalizedFile);
 
       const uri = await uploadPrivate(normalizedFile);
-      if (!valueRef.current) changeRef.current(uri, normalizedFile.name);
+      changeRef.current(uri, normalizedFile.name);
       if (draftKey) await clearPendingFile(draftKey);
       setError("");
     } catch (uploadError) {
-      if (valueRef.current) {
-        if (draftKey) await clearPendingFile(draftKey);
-        setError("");
-      } else {
-        setError(uploadError instanceof Error ? uploadError.message : "Échec du téléversement.");
-      }
+      setError(uploadError instanceof Error ? uploadError.message : "Échec du téléversement.");
     } finally {
       setBusy(false);
       resetInput(galleryInputRef);
