@@ -184,7 +184,13 @@ export default function FileUpload({
     try {
       // Persist the selected file before decoding or resizing it. Mobile
       // browsers may reload the page while processing large gallery images.
-      if (draftKey) await savePendingFile(draftKey, file);
+      if (draftKey) {
+        try {
+          await savePendingFile(draftKey, normalizedFile);
+        } catch {
+          // La sauvegarde de secours est facultative : on envoie quand même.
+        }
+      }
 
       const normalizedFile = await normalizeFile(file);
       const fileKey = `${normalizedFile.name}-${normalizedFile.size}-${normalizedFile.lastModified}`;
@@ -287,9 +293,8 @@ export default function FileUpload({
             type="button"
             disabled={busy}
             onClick={openCameraPicker}
-            className={`flex w-full items-center justify-center gap-2 rounded-xl border border-[#D4AF37]/40 bg-[#D4AF37]/10 px-4 py-3 text-sm font-medium text-[#F6D77C] transition ${
-              busy ? "cursor-wait opacity-60" : "hover:bg-[#D4AF37]/20"
-            }`}
+            className={`flex w-full items-center justify-center gap-2 rounded-xl border border-[#D4AF37]/40 bg-[#D4AF37]/10 px-4 py-3 text-sm font-medium text-[#F6D77C] transition ${busy ? "cursor-wait opacity-60" : "hover:bg-[#D4AF37]/20"
+              }`}
           >
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
             Utiliser la caméra
@@ -299,9 +304,8 @@ export default function FileUpload({
             type="button"
             disabled={busy}
             onClick={openGalleryPicker}
-            className={`flex w-full items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/[0.02] px-4 py-3 text-sm font-medium text-foreground transition ${
-              busy ? "cursor-wait opacity-60" : "hover:border-[#D4AF37]/50 hover:bg-white/[0.04]"
-            }`}
+            className={`flex w-full items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/[0.02] px-4 py-3 text-sm font-medium text-foreground transition ${busy ? "cursor-wait opacity-60" : "hover:border-[#D4AF37]/50 hover:bg-white/[0.04]"
+              }`}
           >
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FolderOpen className="h-4 w-4" />}
             Choisir depuis la galerie
