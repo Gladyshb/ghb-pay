@@ -5,6 +5,7 @@ import { useCurrentUser, useUserBalances, formatMoney, formatDate, KYC_META, DEP
 import StatusBadge from "@/components/ghb/StatusBadge";
 import SupportButtons from "@/components/ghb/SupportButtons";
 import CurrencyCalculator from "@/components/ghb/CurrencyCalculator";
+import DailyRateCard from "@/components/ghb/DailyRateCard";
 import TickerBanner from "@/components/ghb/TickerBanner";
 import AnnouncementCarousel from "@/components/ghb/AnnouncementCarousel";
 import { ArrowDownToLine, ArrowUpFromLine, Wallet, TrendingUp, ShieldCheck, Loader2, ChevronRight, Gift, Info } from "lucide-react";
@@ -135,6 +136,9 @@ export default function Home() {
 
       {/* Currency converter */}
       <CurrencyCalculator currencies={rates} loading={loading} />
+
+      {/* Daily rate share card */}
+      <DailyRateCard currencies={rates} loading={loading} />
 
       {/* Recent activity */}
       <div className="grid sm:grid-cols-2 gap-4">
