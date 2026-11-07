@@ -13,6 +13,7 @@ const ALLOWED_MIME_TYPES = new Set([
   "image/heif",
   "application/pdf",
 ]);
+const ALLOWED_EXTENSIONS = /\.(png|jpe?g|webp|heic|heif|pdf)$/i;
 
 function inferMimeType(file) {
   const type = (file.type || "").toLowerCase();
@@ -24,6 +25,17 @@ function inferMimeType(file) {
   if (name.endsWith(".heic") || name.endsWith(".heif")) return "image/heic";
   if (name.endsWith(".pdf")) return "application/pdf";
   return "";
+}
+
+/**
+ * Garantit un vrai objet File (nom + type). Utile quand le fichier revient
+ * d'IndexedDB sous forme de Blob, ou sans nom sur certains navigateurs mobiles.
+ */
+function ensureFile(candidate) {
+  if (candidate instanceof File && candidate.name) return candidate;
+  const name = candidate?.name || `fichier-${Date.now()}`;
+  const type = candidate?.type || "";
+  return new File([candidate], name, { type, lastModified: candidate?.lastModified || Date.now() });
 }
 
 async function convertToJpeg(file) {
@@ -67,32 +79,40 @@ async function convertToJpeg(file) {
     context.drawImage(source, 0, 0, canvas.width, canvas.height);
 
     const blob = await new Promise((resolve, reject) => {
-      canvas.toBlob((result) => {
-        if (!result) {
-          reject(new Error("Impossible de réduire cette image. Choisissez un JPG ou PNG moins volumineux."));
-          return;
-        }
-        resolve(result);
-      }, "image/jpeg", 0.88);
+      canvas.toBlob(
+        (result) => {
+          if (!result) {
+            reject(new Error("Impossible de réduire cette image. Choisissez un JPG ou PNG moins volumineux."));
+            return;
+          }
+          resolve(result);
+        },
+        "image/jpeg",
+        0.88,
+      );
     });
 
+    // Libère la mémoire du canvas (important sur mobile).
+    canvas.width = 0;
+    canvas.height = 0;
+
     const baseName = (file.name || "file").replace(/\.[^./]+$/, "");
-    const convertedFile = new File([blob], `${baseName}.jpg`, {
+    return new File([blob], `${baseName}.jpg`, {
       type: "image/jpeg",
       lastModified: Date.now(),
     });
-    return convertedFile;
   } finally {
     if (typeof source?.close === "function") source.close();
     if (objectUrl) URL.revokeObjectURL(objectUrl);
   }
 }
 
-async function normalizeFile(file) {
+async function normalizeFile(inputFile) {
+  const file = ensureFile(inputFile);
   const mimeType = inferMimeType(file);
-  const extension = (file.name || "").toLowerCase();
+  const fileName = (file.name || "").toLowerCase();
 
-  if (!mimeType && !/\.(png|jpe?g|webp|heic|heif|pdf)$/i.test(extension)) {
+  if (!mimeType && !ALLOWED_EXTENSIONS.test(fileName)) {
     throw new Error("Type de fichier non pris en charge. Utilisez JPG, PNG, WEBP ou PDF.");
   }
 
@@ -100,16 +120,21 @@ async function normalizeFile(file) {
     throw new Error("Format de fichier non pris en charge. Veuillez choisir une image JPG/PNG/WEBP ou un PDF.");
   }
 
-  const isHeic = mimeType === "image/heic" || mimeType === "image/heif" || /\.(heic|heif)$/i.test(extension);
-  if (isHeic || mimeType?.startsWith("image/")) {
+  const isHeic = mimeType === "image/heic" || mimeType === "image/heif" || /\.(heic|heif)$/i.test(fileName);
+  const isImage = isHeic || mimeType.startsWith("image/");
+
+  if (isImage) {
     let convertedFile;
     try {
       convertedFile = await convertToJpeg(file);
-    } catch {
+    } catch (conversionError) {
+      console.warn("[FileUpload] conversion échouée", conversionError);
       if (isHeic) {
-        throw new Error("Le téléphone n’a pas assez de mémoire pour convertir cette photo HEIC. Choisissez un JPG/PNG dans la galerie ou réduisez la photo puis réessayez.");
+        throw new Error(
+          "Le téléphone n’a pas pu convertir cette photo HEIC. Choisissez un JPG/PNG dans la galerie ou réduisez la photo puis réessayez.",
+        );
       }
-      throw new Error("Le téléphone n’a pas assez de mémoire pour traiter cette photo. Choisissez une image moins volumineuse puis réessayez.");
+      throw new Error("Le téléphone n’a pas pu traiter cette photo. Choisissez une image moins volumineuse puis réessayez.");
     }
     if (convertedFile.size > MAX_FILE_SIZE_BYTES) {
       throw new Error("L’image reste trop volumineuse après réduction. Essayez une photo moins détaillée.");
@@ -125,8 +150,9 @@ async function normalizeFile(file) {
 }
 
 /**
- * File picker that survives a page reload: the selected file is mirrored in
- * IndexedDB and resumed automatically when the page returns.
+ * Sélecteur de fichier qui survit à un rechargement de page : le fichier choisi
+ * est sauvegardé (tel quel, avant tout traitement) dans IndexedDB puis repris
+ * automatiquement au retour sur la page.
  */
 export default function FileUpload({
   value,
@@ -140,120 +166,144 @@ export default function FileUpload({
   const cameraInputRef = useRef(null);
   const inputId = useId();
   const lastHandledFileRef = useRef("");
+  const busyRef = useRef(false);
   const changeRef = useRef(onChange);
   changeRef.current = onChange;
   const valueRef = useRef(value);
   valueRef.current = value;
+
   const [busy, setBusy] = useState(false);
   const [name, setName] = useState("");
   const [error, setError] = useState("");
   const [resuming, setResuming] = useState(false);
 
-  const resetInput = (inputRefValue) => {
-    if (inputRefValue?.current) inputRefValue.current.value = "";
+  const setBusyState = (next) => {
+    busyRef.current = next;
+    setBusy(next);
   };
 
-  const openGalleryPicker = () => {
-    if (busy) return;
-    resetInput(galleryInputRef);
-    if (typeof galleryInputRef.current?.showPicker === "function") {
-      galleryInputRef.current.showPicker();
-      return;
-    }
-    galleryInputRef.current?.click();
+  const resetInputs = () => {
+    if (galleryInputRef.current) galleryInputRef.current.value = "";
+    if (cameraInputRef.current) cameraInputRef.current.value = "";
   };
 
-  const openCameraPicker = () => {
-    if (busy) return;
-    resetInput(cameraInputRef);
-    if (typeof cameraInputRef.current?.showPicker === "function") {
-      cameraInputRef.current.showPicker();
-      return;
+  // .click() est plus fiable que showPicker() pour les inputs fichier sur mobile.
+  const openPicker = (inputRef) => {
+    if (busyRef.current) return;
+    if (inputRef.current) inputRef.current.value = "";
+    inputRef.current?.click();
+  };
+
+  const safeClearPending = async () => {
+    if (!draftKey) return;
+    try {
+      await clearPendingFile(draftKey);
+    } catch (clearError) {
+      console.warn("[FileUpload] clearPendingFile a échoué", clearError);
     }
-    cameraInputRef.current?.click();
   };
 
   const handleFileSelection = async (file) => {
-    if (!file || busy) {
-      if (!file) setError("Aucun fichier n’a été reçu. Réessayez de choisir le document.");
+    if (!file) {
+      setError("Aucun fichier n’a été reçu. Réessayez de choisir le document.");
       return;
     }
+    if (busyRef.current) return;
 
-    setBusy(true);
+    setBusyState(true);
     setError("");
+    setName(file.name || "");
+
     try {
-      // Persist the selected file before decoding or resizing it. Mobile
-      // browsers may reload the page while processing large gallery images.
+      // 1) Sauvegarde du fichier ORIGINAL avant tout traitement lourd :
+      //    les navigateurs mobiles peuvent recharger la page pendant le décodage.
       if (draftKey) {
         try {
-          await savePendingFile(draftKey, normalizedFile);
-        } catch {
-          // La sauvegarde de secours est facultative : on envoie quand même.
+          await savePendingFile(draftKey, file);
+        } catch (saveError) {
+          console.warn("[FileUpload] savePendingFile a échoué", saveError);
         }
       }
 
+      // 2) Conversion / réduction.
       const normalizedFile = await normalizeFile(file);
       const fileKey = `${normalizedFile.name}-${normalizedFile.size}-${normalizedFile.lastModified}`;
 
-      if (lastHandledFileRef.current === fileKey && value) {
-        resetInput(galleryInputRef);
-        resetInput(cameraInputRef);
+      if (lastHandledFileRef.current === fileKey && valueRef.current) {
+        await safeClearPending();
         return;
       }
 
       lastHandledFileRef.current = fileKey;
       setName(normalizedFile.name);
 
+      // 3) Envoi.
       const uri = await uploadPrivate(normalizedFile);
       changeRef.current(uri, normalizedFile.name);
-      if (draftKey) await clearPendingFile(draftKey);
+      await safeClearPending();
       setError("");
     } catch (uploadError) {
+      console.warn("[FileUpload] échec", uploadError);
+      // On vide la sauvegarde pour ne pas relancer en boucle un fichier invalide.
+      await safeClearPending();
       setError(uploadError instanceof Error ? uploadError.message : "Échec du téléversement.");
     } finally {
-      setBusy(false);
-      resetInput(galleryInputRef);
-      resetInput(cameraInputRef);
+      setBusyState(false);
+      resetInputs();
     }
   };
 
-  const handleGallery = async (event) => {
+  const handleInputChange = async (event) => {
     const file = event.currentTarget.files?.[0];
     await handleFileSelection(file);
   };
 
-  const handleCamera = async (event) => {
-    const file = event.currentTarget.files?.[0];
-    await handleFileSelection(file);
-  };
-
+  // Reprise automatique après rechargement de la page.
   useEffect(() => {
     if (!draftKey) return undefined;
     let cancelled = false;
+
     (async () => {
+      let resumedStarted = false;
       try {
         if (valueRef.current) {
-          await clearPendingFile(draftKey);
+          await safeClearPending();
           return;
         }
+
         const pending = await getPendingFile(draftKey);
-        if (cancelled || !pending || busy || valueRef.current) return;
-        setBusy(true);
+        if (cancelled || !pending || busyRef.current || valueRef.current) return;
+
+        resumedStarted = true;
+        setBusyState(true);
         setResuming(true);
-        setName(pending.name);
-        const uri = await uploadPrivate(await normalizeFile(pending));
-        if (!valueRef.current) changeRef.current(uri, pending.name);
-        if (draftKey) await clearPendingFile(draftKey);
+
+        const pendingFile = ensureFile(pending);
+        setName(pendingFile.name);
+
+        const normalizedFile = await normalizeFile(pendingFile);
+        const uri = await uploadPrivate(normalizedFile);
+        if (!valueRef.current) changeRef.current(uri, normalizedFile.name);
+        await safeClearPending();
         setError("");
       } catch (resumeError) {
-        setError(resumeError instanceof Error ? resumeError.message : "La reprise du téléversement a échoué. Réessayez.");
-      } finally {
+        console.warn("[FileUpload] reprise échouée", resumeError);
+        await safeClearPending();
         if (!cancelled) {
-          setBusy(false);
+          setError(
+            resumeError instanceof Error
+              ? resumeError.message
+              : "La reprise du téléversement a échoué. Réessayez.",
+          );
+        }
+      } finally {
+        if (resumedStarted && !cancelled) {
+          setBusyState(false);
           setResuming(false);
         }
       }
     })();
+
     return () => {
       cancelled = true;
     };
@@ -272,7 +322,7 @@ export default function FileUpload({
         className="hidden"
         aria-label={`${label} depuis la galerie`}
         disabled={busy}
-        onChange={handleGallery}
+        onChange={handleInputChange}
       />
 
       <input
@@ -284,7 +334,7 @@ export default function FileUpload({
         className="hidden"
         aria-label={`${label} depuis la caméra`}
         disabled={busy}
-        onChange={handleCamera}
+        onChange={handleInputChange}
       />
 
       {!value ? (
@@ -292,9 +342,10 @@ export default function FileUpload({
           <button
             type="button"
             disabled={busy}
-            onClick={openCameraPicker}
-            className={`flex w-full items-center justify-center gap-2 rounded-xl border border-[#D4AF37]/40 bg-[#D4AF37]/10 px-4 py-3 text-sm font-medium text-[#F6D77C] transition ${busy ? "cursor-wait opacity-60" : "hover:bg-[#D4AF37]/20"
-              }`}
+            onClick={() => openPicker(cameraInputRef)}
+            className={`flex w-full items-center justify-center gap-2 rounded-xl border border-[#D4AF37]/40 bg-[#D4AF37]/10 px-4 py-3 text-sm font-medium text-[#F6D77C] transition ${
+              busy ? "cursor-wait opacity-60" : "hover:bg-[#D4AF37]/20"
+            }`}
           >
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
             Utiliser la caméra
@@ -303,9 +354,10 @@ export default function FileUpload({
           <button
             type="button"
             disabled={busy}
-            onClick={openGalleryPicker}
-            className={`flex w-full items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/[0.02] px-4 py-3 text-sm font-medium text-foreground transition ${busy ? "cursor-wait opacity-60" : "hover:border-[#D4AF37]/50 hover:bg-white/[0.04]"
-              }`}
+            onClick={() => openPicker(galleryInputRef)}
+            className={`flex w-full items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/[0.02] px-4 py-3 text-sm font-medium text-foreground transition ${
+              busy ? "cursor-wait opacity-60" : "hover:border-[#D4AF37]/50 hover:bg-white/[0.04]"
+            }`}
           >
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FolderOpen className="h-4 w-4" />}
             Choisir depuis la galerie
@@ -326,7 +378,7 @@ export default function FileUpload({
               setName("");
               setError("");
               lastHandledFileRef.current = "";
-              if (draftKey) clearPendingFile(draftKey);
+              safeClearPending();
             }}
             className="rounded-lg p-1.5 text-muted-foreground hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
             aria-label="Supprimer le fichier sélectionné"
@@ -336,7 +388,7 @@ export default function FileUpload({
           <button
             type="button"
             disabled={busy}
-            onClick={openGalleryPicker}
+            onClick={() => openPicker(galleryInputRef)}
             className="rounded-lg border border-white/15 px-2.5 py-1.5 text-xs text-foreground hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50"
           >
             Changer
@@ -350,12 +402,16 @@ export default function FileUpload({
           <RefreshCw className="inline h-3 w-3" /> Vous pouvez quitter : l’envoi reprendra.
         </div>
       )}
+      {busy && resuming && (
+        <div className="mt-2 text-xs text-muted-foreground">Reprise de l’envoi en cours…</div>
+      )}
       {busy && !resuming && !draftKey && (
         <div className="mt-2 text-xs text-muted-foreground">Gardez cette page ouverte.</div>
       )}
       {error && (
         <div role="alert" className="mt-2 break-words text-sm text-red-400">
-          {name ? `${name} : ` : ""}{error}
+          {name ? `${name} : ` : ""}
+          {error}
         </div>
       )}
     </div>
