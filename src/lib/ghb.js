@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { selectRows } from "@/lib/supabaseData";
 
@@ -68,19 +68,22 @@ export async function signFile(path) {
   if (error) throw error;
   return data.signedUrl;
 }
-
 export function useCurrentUser() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [reloadKey, setReloadKey] = useState(0);
+  const userRef = useRef(null);
   const refresh = useCallback(() => setReloadKey((key) => key + 1), []);
 
   useEffect(() => {
     let alive = true;
     let requestId = 0;
+
     const loadUser = async (authUser) => {
       const currentRequestId = ++requestId;
+
       if (!authUser) {
+        userRef.current = null;
         if (alive) {
           setUser(null);
           setLoading(false);
@@ -88,35 +91,49 @@ export function useCurrentUser() {
         return;
       }
 
-      setLoading(true);
+      // Correctif : on n'affiche "loading" que si cet utilisateur n'est pas déjà chargé.
+      const alreadyLoaded = userRef.current?.id === authUser.id;
+      if (!alreadyLoaded) setLoading(true);
+
       try {
         const rows = await selectRows("profiles", { id: authUser.id }, { limit: 1 });
         if (!alive || currentRequestId !== requestId) return;
-        setUser({
+        const nextUser = {
           ...authUser,
           ...(authUser.user_metadata || {}),
           ...(rows[0] || {}),
           id: authUser.id,
           email: authUser.email,
-        });
+        };
+        userRef.current = nextUser;
+        setUser(nextUser);
       } catch (error) {
         console.error("Failed to load the current profile:", error);
-        if (alive && currentRequestId === requestId) setUser(null);
+        if (alive && currentRequestId === requestId && !alreadyLoaded) {
+          userRef.current = null;
+          setUser(null);
+        }
       } finally {
         if (alive && currentRequestId === requestId) setLoading(false);
       }
     };
 
-    setLoading(true);
+    if (!userRef.current) setLoading(true);
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event !== "TOKEN_REFRESHED") void loadUser(session?.user || null);
+      if (event === "TOKEN_REFRESHED") return;
+      setTimeout(() => {
+        if (alive) void loadUser(session?.user || null);
+      }, 0);
     });
+
     supabase.auth.getUser().then(({ data, error }) => {
       if (error) throw error;
       return loadUser(data.user);
     }).catch((error) => {
       console.error("Failed to load the current authenticated user:", error);
       if (alive) {
+        userRef.current = null;
         setUser(null);
         setLoading(false);
       }
@@ -130,6 +147,68 @@ export function useCurrentUser() {
 
   return { user, loading, refresh };
 }
+
+// export function useCurrentUser() {
+//   const [user, setUser] = useState(null);
+//   const [loading, setLoading] = useState(true);
+//   const [reloadKey, setReloadKey] = useState(0);
+//   const refresh = useCallback(() => setReloadKey((key) => key + 1), []);
+
+//   useEffect(() => {
+//     let alive = true;
+//     let requestId = 0;
+//     const loadUser = async (authUser) => {
+//       const currentRequestId = ++requestId;
+//       if (!authUser) {
+//         if (alive) {
+//           setUser(null);
+//           setLoading(false);
+//         }
+//         return;
+//       }
+
+//       setLoading(true);
+//       try {
+//         const rows = await selectRows("profiles", { id: authUser.id }, { limit: 1 });
+//         if (!alive || currentRequestId !== requestId) return;
+//         setUser({
+//           ...authUser,
+//           ...(authUser.user_metadata || {}),
+//           ...(rows[0] || {}),
+//           id: authUser.id,
+//           email: authUser.email,
+//         });
+//       } catch (error) {
+//         console.error("Failed to load the current profile:", error);
+//         if (alive && currentRequestId === requestId) setUser(null);
+//       } finally {
+//         if (alive && currentRequestId === requestId) setLoading(false);
+//       }
+//     };
+
+//     setLoading(true);
+//     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+//       if (event !== "TOKEN_REFRESHED") void loadUser(session?.user || null);
+//     });
+//     supabase.auth.getUser().then(({ data, error }) => {
+//       if (error) throw error;
+//       return loadUser(data.user);
+//     }).catch((error) => {
+//       console.error("Failed to load the current authenticated user:", error);
+//       if (alive) {
+//         setUser(null);
+//         setLoading(false);
+//       }
+//     });
+
+//     return () => {
+//       alive = false;
+//       subscription.unsubscribe();
+//     };
+//   }, [reloadKey]);
+
+//   return { user, loading, refresh };
+// }
 
 export function useUserBalances(userId) {
   const [balances, setBalances] = useState([]);

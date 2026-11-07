@@ -80,7 +80,7 @@ export default function Kyc() {
     }
   };
 
-  if (loading) {
+  if (loading && !user) {
     return <div className="flex justify-center py-20"><Loader2 className="w-6 h-6 text-[#D4AF37] animate-spin" /></div>;
   }
 
@@ -162,7 +162,7 @@ export default function Kyc() {
           <FileUpload
             draftKey="kyc_document"
             value={form.id_document_uri}
-            onChange={(uri) => setForm({ ...form, id_document_uri: uri })}
+            onChange={(uri) => setForm((current) => ({ ...current, id_document_uri: uri }))}
             label="Photo / scan de la pièce d'identité"
             accept="image/*,application/pdf"
             hint="JPG, PNG ou PDF — lisible"

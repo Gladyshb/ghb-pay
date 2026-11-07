@@ -25,23 +25,59 @@ function runTransaction(mode, fn) {
         const tx = db.transaction(STORE, mode);
         const store = tx.objectStore(STORE);
         const request = fn(store);
-        tx.oncomplete = () => resolve(request ? request.result : undefined);
-        tx.onerror = () => reject(tx.error || new Error("IndexedDB: transaction échouée"));
-        tx.onabort = () => reject(tx.error || new Error("IndexedDB: transaction abandonnée"));
-      })
+        tx.oncomplete = () => {
+          db.close();
+          resolve(request ? request.result : undefined);
+        };
+        tx.onerror = () => {
+          db.close();
+          reject(tx.error || new Error("IndexedDB: transaction échouée"));
+        };
+        tx.onabort = () => {
+          db.close();
+          reject(tx.error || new Error("IndexedDB: transaction abandonnée"));
+        };
+      }),
   );
 }
 
-/** Guard a File/Blob across a page reload while the upload is in flight. */
-export function savePendingFile(slot, file) {
-  return runTransaction("readwrite", (store) => store.put(file, slot));
+/**
+ * Sauvegarde un fichier le temps de l'envoi.
+ * On stocke un ArrayBuffer + métadonnées plutôt que l'objet File :
+ * Safari iOS gère mal les File/Blob dans IndexedDB.
+ */
+export async function savePendingFile(slot, file) {
+  const buffer = await file.arrayBuffer();
+  const record = {
+    buffer,
+    name: file.name || "",
+    type: file.type || "",
+    lastModified: file.lastModified || Date.now(),
+  };
+  return runTransaction("readwrite", (store) => store.put(record, slot));
 }
 
 /** @returns {Promise<File | undefined>} */
 export function getPendingFile(slot) {
-  return runTransaction("readonly", (store) => store.get(slot)).then(
-    (saved) => (saved instanceof File ? saved : undefined)
-  );
+  return runTransaction("readonly", (store) => store.get(slot)).then((saved) => {
+    if (!saved) return undefined;
+
+    // Ancien format (File/Blob stocké directement).
+    if (typeof Blob !== "undefined" && saved instanceof Blob) {
+      if (saved instanceof File) return saved;
+      return new File([saved], `fichier-${Date.now()}`, { type: saved.type || "" });
+    }
+
+    // Nouveau format.
+    if (saved.buffer instanceof ArrayBuffer) {
+      return new File([saved.buffer], saved.name || `fichier-${Date.now()}`, {
+        type: saved.type || "",
+        lastModified: saved.lastModified || Date.now(),
+      });
+    }
+
+    return undefined;
+  });
 }
 
 export function clearPendingFile(slot) {

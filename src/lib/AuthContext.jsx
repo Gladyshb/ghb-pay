@@ -49,7 +49,7 @@ export function AuthProvider({ children }) {
   }, []);
 
   const checkUserAuth = useCallback(async () => {
-    setIsLoadingAuth(true);
+    if (!currentUserRef.current) setIsLoadingAuth(true);
     setAuthError(null);
     const requestId = ++authRequestRef.current;
     try {
