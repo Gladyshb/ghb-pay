@@ -139,7 +139,7 @@ export default function DailyRateCard({ currencies, loading }) {
         <QuoteCard
           innerRef={captureRef}
           cur={quote.cur}
-          ref={quote.ref}
+          referenceRate={quote.ref}
           buy={quote.buy}
           sell={quote.sell}
           sendBif={quote.sendBif}
@@ -157,7 +157,7 @@ export default function DailyRateCard({ currencies, loading }) {
   );
 }
 
-function QuoteCard({ innerRef, cur, ref: refRate, buy, sell, sendBif, recvBif, date }) {
+function QuoteCard({ innerRef, cur, referenceRate, buy, sell, sendBif, recvBif, date }) {
   return (
     <div
       ref={innerRef}
@@ -260,7 +260,7 @@ function QuoteCard({ innerRef, cur, ref: refRate, buy, sell, sendBif, recvBif, d
         <div style={{ marginTop: 10, fontSize: 12, color: "rgba(244,241,234,0.55)" }}>
           Référence :{" "}
           <span style={{ color: "#F4F1EA", fontWeight: 600 }}>
-            {fmtRate(refRate)} {cur.code}
+            {fmtRate(referenceRate)} {cur.code}
           </span>{" "}
           / 1 USDT
         </div>
